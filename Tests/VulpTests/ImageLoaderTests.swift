@@ -24,6 +24,32 @@ import Testing
     #expect(second === first)
 }
 
+@Test func imageLoaderClearCacheRemovesDecodedImagesAndEncodedSources() async throws {
+    let directory = FileManager.default.temporaryDirectory
+        .appendingPathComponent("VulpTests-\(UUID().uuidString)", isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: directory) }
+
+    let imageCache = InMemoryImageCache()
+    let dataCache = DiskImageDataCache(directory: directory)
+    let loader = DefaultImageLoader(
+        downloader: DefaultImageDataDownloader(),
+        deserializer: ImageIOImageDeserializer(),
+        processor: ResizeImageProcessor(),
+        cache: imageCache,
+        dataCache: dataCache
+    )
+    let imageKey = "decoded-image"
+    let dataKey = "encoded-source"
+    let image = try await TestImageData.image()
+    await imageCache.insert(image, forKey: imageKey)
+    await dataCache.insert(TestImageData.png, forKey: dataKey)
+
+    await loader.clearCache()
+
+    #expect(await imageCache.image(forKey: imageKey) == nil)
+    #expect(await dataCache.data(forKey: dataKey) == nil)
+}
+
 @Test func imageLoaderDeduplicatesConcurrentRequests() async throws {
     let downloader = CountingDownloader()
     let loader = DefaultImageLoader(

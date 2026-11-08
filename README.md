@@ -66,7 +66,7 @@ struct RemotePhoto: View {
 
 ## Performance-conscious loading
 
-Share a loader across screens and cells instead of creating one for each view. The memory cache stores decoded images, while the disk cache stores encoded source data. If an image is requested at another size, the loader can decode it again from the cached source data without downloading it again.
+Share a loader across screens and cells instead of creating one for each view. The memory cache stores decoded images, while the disk cache stores encoded source data. If an image is requested at another size, the loader can decode it again from the cached source data without downloading it again. Clear both caches held by the standard loader with `await MediaImageLoader.default.clearCache()`.
 
 ```swift
 import Vulp
