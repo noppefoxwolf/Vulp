@@ -214,7 +214,7 @@ let image = try await loader.load(request, priority: .userInitiated)
 
 ## Animated images
 
-`VulpUI.AsyncImage` and `AsyncImageView` load and play multi-frame images incrementally. They do not decode every frame up front; by default, the next three frames are prefetched. Lower `prefetchCount` to reduce memory use. Use `levelOfIntegrity` to adjust the playback frame rate.
+`VulpUI.AsyncImage` and `AsyncImageView` support animated GIF, APNG, and WebP images. They load and play frames incrementally instead of decoding every frame up front; by default, the next three frames are prefetched. Lower `prefetchCount` to reduce memory use. Use `levelOfIntegrity` to adjust the playback frame rate.
 
 ## Customization
 
