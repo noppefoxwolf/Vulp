@@ -117,6 +117,7 @@ public struct AsyncImage<Loader: MediaImageLoading, Placeholder: View>: View {
                     taskIdentifier: "\(taskIdentifier)|\(targetSize.width)x\(targetSize.height)@\(displayScale)",
                     sequenceOperation: sequenceOperation
                 )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         } else if let makeImageOperation {
             if sizingMode == .viewBounds {
@@ -130,6 +131,7 @@ public struct AsyncImage<Loader: MediaImageLoading, Placeholder: View>: View {
                         for: operation,
                         taskIdentifier: "\(targetSize.width)x\(targetSize.height)@\(displayScale)"
                     )
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
             } else {
                 let operation = makeImageOperation(nil, 1)
