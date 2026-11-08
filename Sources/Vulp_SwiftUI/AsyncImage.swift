@@ -207,27 +207,36 @@ public struct AsyncImage<Loader: MediaImageLoading, Placeholder: View>: View {
         using loadSequence: @MainActor @Sendable () async throws -> (ImageSequenceFrameLoader<Loader>, ImageSequencePlaybackPlan)
     ) async throws {
         let (frameLoader, playbackPlan) = try await loadSequence()
-        guard let firstIndex = playbackPlan.frameIndices.first else { return }
-        let firstImage = try await frameLoader.frame(at: firstIndex)
-        image = firstImage
-        if Set(playbackPlan.frameIndices).count == 1 {
-            await frameLoader.cancel()
-            return
-        }
-
-        do {
-            while !Task.isCancelled {
-                for index in playbackPlan.frameIndices.dropFirst() {
-                    try Task.checkCancellation()
-                    try await Task.sleep(for: .seconds(playbackPlan.frameRate.frameDuration))
-                    image = try await frameLoader.frame(at: index)
+        try await withTaskCancellationHandler {
+            do {
+                guard let firstIndex = playbackPlan.frameIndices.first else {
+                    await frameLoader.cancel()
+                    return
                 }
-                try await Task.sleep(for: .seconds(playbackPlan.frameRate.frameDuration))
+                let firstImage = try await frameLoader.frame(at: firstIndex)
+                try Task.checkCancellation()
                 image = firstImage
+                guard Set(playbackPlan.frameIndices).count > 1 else {
+                    await frameLoader.cancel()
+                    return
+                }
+
+                while !Task.isCancelled {
+                    for index in playbackPlan.frameIndices.dropFirst() {
+                        try Task.checkCancellation()
+                        try await Task.sleep(for: .seconds(playbackPlan.frameRate.frameDuration))
+                        image = try await frameLoader.frame(at: index)
+                    }
+                    try await Task.sleep(for: .seconds(playbackPlan.frameRate.frameDuration))
+                    image = firstImage
+                }
+                await frameLoader.cancel()
+            } catch {
+                await frameLoader.cancel()
+                throw error
             }
-        } catch {
-            await frameLoader.cancel()
-            throw error
+        } onCancel: {
+            Task { await frameLoader.cancel() }
         }
     }
 }
