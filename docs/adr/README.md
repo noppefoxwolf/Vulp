@@ -25,3 +25,4 @@ This directory stores decisions that affect Vulp's architecture and public API.
 - [0012. Decode media sources through composed decoders](0012-media-source-decoding.md)
 - [0013. Pass view scale into image requests](0013-pass-view-scale-into-image-requests.md)
 - [0014. Use UIUpdateLink for UIKit sequence playback](0014-uiupdate-link-for-uikit-sequence-playback.md)
+- [0015. Preserve source aspect ratio when resizing](0015-preserve-source-aspect-ratio-when-resizing.md)

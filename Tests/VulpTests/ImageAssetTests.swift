@@ -43,7 +43,7 @@ struct CustomAssetHandle: ImageAssetHandle {
         targetSize: CGSize(width: 40, height: 30)
     )
 
-    #expect(request.cacheIdentifier == "avatar|64.0x48.0|original")
+    #expect(request.cacheIdentifier == "avatar|64.0x48.0|original|resize:fit")
 }
 
 @Test func requestRejectsNegativeDimensions() {

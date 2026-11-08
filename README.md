@@ -55,14 +55,19 @@ import SwiftUI
 
 struct RemotePhoto: View {
     var body: some View {
-        VulpUI.AsyncImage(url: URL(string: "https://example.com/photo.jpg")!) {
+        VulpUI.AsyncImage(
+            url: URL(string: "https://example.com/photo.jpg")!,
+            content: { image in image.resizable().scaledToFit() }
+        ) {
             ProgressView()
         }
     }
 }
 ```
 
-`VulpUI.AsyncImage(url:)` sizes the request from its displayed bounds and environment display scale. It accepts an optional failure callback and plays animated sources incrementally. For custom loaders or request options, use one of the request-based initializers.
+`VulpUI.AsyncImage(url:)` sizes the request from its displayed bounds and environment display scale. Its `content` closure receives a SwiftUI `Image`; apply `.resizable()`, `.scaledToFit()`, or other image modifiers there. The placeholder is supplied separately. It accepts an optional failure callback and plays animated sources incrementally. For custom loaders or request options, use one of the request-based initializers.
+
+Set `resizeMode: .fill` on URL-based SwiftUI/UIKit loads or on `MediaImageRequest` to cover the requested bounds and center-crop the source. The default `.fit` mode keeps the full image visible.
 
 ## Performance-conscious loading
 
@@ -101,7 +106,7 @@ let request = try MediaImageRequest(
 let image = try await imageLoader.load(request)
 ```
 
-The standard `ImageIOImageDecoder` downsamples during decoding using the requested size as an upper bound. `ResizeImageProcessor` then produces the final dimensions. Matching request sizes to the display avoids decoding unnecessarily large images for a scrolling list.
+The standard `ImageIOImageDecoder` downsamples during decoding using the requested size as an upper bound. `ResizeImageProcessor` preserves the source aspect ratio and supports `.fit` (show the whole image within the requested size) and `.fill` (cover the requested size and center-crop overflow). `.fit` is the default. Matching request sizes to the display avoids decoding unnecessarily large images for a scrolling list.
 
 ## Prefetching with UICollectionView
 

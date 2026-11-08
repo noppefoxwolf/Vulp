@@ -28,7 +28,8 @@ public struct ImageSequence: Sendable {
     public func frameRequest(
         at index: Int,
         targetSize: CGSize,
-        renderingMode: ImageRenderingMode = .original
+        renderingMode: ImageRenderingMode = .original,
+        resizeMode: ImageResizeMode = .fit
     ) throws -> MediaImageRequest {
         guard index >= 0, index < frameCount else {
             throw ImageSequenceError.invalidFrameIndex(index)
@@ -39,6 +40,7 @@ public struct ImageSequence: Sendable {
             assetHandle: asset,
             targetSize: targetSize,
             renderingMode: renderingMode,
+            resizeMode: resizeMode,
             decodingOptions: .frame(index: index)
         )
     }
@@ -47,13 +49,14 @@ public struct ImageSequence: Sendable {
     @concurrent
     public func loadFrames<Loader: MediaImageLoading>(
         using loader: Loader,
-        targetSize: CGSize
+        targetSize: CGSize,
+        resizeMode: ImageResizeMode = .fit
     ) async throws -> [MediaImage] {
         var images: [MediaImage] = []
         images.reserveCapacity(frameCount)
         for index in 0..<frameCount {
             try Task.checkCancellation()
-            let request = try frameRequest(at: index, targetSize: targetSize)
+            let request = try frameRequest(at: index, targetSize: targetSize, resizeMode: resizeMode)
             images.append(try await loader.load(request))
         }
         return images

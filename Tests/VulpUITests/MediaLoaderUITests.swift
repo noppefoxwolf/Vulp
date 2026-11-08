@@ -128,7 +128,7 @@ private struct SequenceCancellationTrackingImageLoader: MediaImageSequenceLoadin
         targetSize: .zero
     )
 
-    let view = VulpUI.AsyncImage(request: request, loader: TestImageLoader()) {
+    let view = VulpUI.AsyncImage(request: request, loader: TestImageLoader(), content: { $0.resizable() }) {
         ProgressView()
     }
 
@@ -144,6 +144,9 @@ private struct SequenceCancellationTrackingImageLoader: MediaImageSequenceLoadin
                 targetSize: targetSize ?? .zero,
                 scale: scale
             )
+        },
+        content: { image in
+            image.resizable().scaledToFit()
         }
     ) {
         ProgressView()
@@ -164,7 +167,8 @@ private struct SequenceCancellationTrackingImageLoader: MediaImageSequenceLoadin
         asset: asset,
         loader: loader,
         targetSize: CGSize(width: 16, height: 16),
-        levelOfIntegrity: 0.9
+        levelOfIntegrity: 0.9,
+        content: { $0.resizable() }
     ) {
         ProgressView()
     }
@@ -221,7 +225,8 @@ import UIKit
             asset: asset,
             loader: loader,
             targetSize: CGSize(width: 16, height: 16),
-            prefetchCount: 3
+            prefetchCount: 3,
+            content: { $0.resizable() }
         ) {
             ProgressView()
         }

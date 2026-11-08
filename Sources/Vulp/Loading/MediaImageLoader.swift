@@ -178,7 +178,7 @@ public struct DefaultMediaImageLoader<Downloader: ImageDataDownloader, Decoder: 
         priority: TaskPriority
     ) async throws -> (MediaImage, usedFallback: Bool) {
         let longestTargetEdge = max(request.targetSize.width, request.targetSize.height)
-        // This caps decoder output; `request.targetSize` remains the processor's final output size.
+        // This caps decoder output; the processor fits the decoded image within `request.targetSize`.
         let maximumPixelDimension: Int? = {
             guard longestTargetEdge.isFinite,
                   longestTargetEdge > 0,

@@ -3,12 +3,13 @@ import Observation
 @_exported import Vulp
 
 /// Loads and displays an image, playing it when the loaded source contains multiple frames.
-public struct AsyncImage<Loader: MediaImageLoading, Placeholder: View>: View {
+public struct AsyncImage<Loader: MediaImageLoading, Content: View, Placeholder: View>: View {
     private let taskIdentifier: String
     private let levelOfIntegrity: Double
     private let loadImages: @MainActor @Sendable () async throws -> [MediaImage]
     private let loadSequence: (@MainActor @Sendable () async throws -> (ImageSequenceFrameLoader<Loader>, ImageSequencePlaybackPlan))?
     private let makeSizedSequence: (@MainActor @Sendable (CGSize, CGFloat) -> (@MainActor @Sendable () async throws -> (ImageSequenceFrameLoader<Loader>, ImageSequencePlaybackPlan))?)?
+    private let content: (Image) -> Content
     private let placeholder: Placeholder
     private let onFailure: (@MainActor @Sendable (any Error) -> Void)?
 
@@ -24,6 +25,7 @@ public struct AsyncImage<Loader: MediaImageLoading, Placeholder: View>: View {
         request: Request,
         loader: Loader,
         onFailure: (@MainActor @Sendable (any Error) -> Void)? = nil,
+        @ViewBuilder content: @escaping (Image) -> Content,
         @ViewBuilder placeholder: () -> Placeholder
     ) {
         self.taskIdentifier = request.cacheIdentifier
@@ -32,6 +34,7 @@ public struct AsyncImage<Loader: MediaImageLoading, Placeholder: View>: View {
         self.makeImageOperation = nil
         self.loadSequence = nil
         self.makeSizedSequence = nil
+        self.content = content
         self.loadImages = { [loader, request] in
             [try await loader.load(request)]
         }
@@ -46,14 +49,17 @@ public struct AsyncImage<Loader: MediaImageLoading, Placeholder: View>: View {
         targetSize: CGSize,
         levelOfIntegrity: Double = 1,
         prefetchCount: Int = 3,
+        resizeMode: ImageResizeMode = .fit,
         onFailure: (@MainActor @Sendable (any Error) -> Void)? = nil,
+        @ViewBuilder content: @escaping (Image) -> Content,
         @ViewBuilder placeholder: () -> Placeholder
     ) where Loader: MediaImageSequenceLoading {
-        self.taskIdentifier = "\(asset.uniqueKey)|\(targetSize.width)x\(targetSize.height)|integrity:\(levelOfIntegrity)"
+        self.taskIdentifier = "\(asset.uniqueKey)|\(targetSize.width)x\(targetSize.height)|integrity:\(levelOfIntegrity)|resize:\(resizeMode.rawValue)"
         self.levelOfIntegrity = levelOfIntegrity
         self.sizingMode = .explicitPixels
         self.makeImageOperation = nil
         self.makeSizedSequence = nil
+        self.content = content
         self.loadImages = { [] }
         self.loadSequence = { [loader, asset] in
             let sequence = try await loader.loadSequence(from: asset)
@@ -63,6 +69,7 @@ public struct AsyncImage<Loader: MediaImageLoading, Placeholder: View>: View {
                     sequence: sequence,
                     using: loader,
                     targetSize: targetSize,
+                    resizeMode: resizeMode,
                     prefetchCount: prefetchCount,
                     playbackFrameIndices: playbackPlan.frameIndices
                 ),
@@ -79,6 +86,7 @@ public struct AsyncImage<Loader: MediaImageLoading, Placeholder: View>: View {
         sizingMode: ImageViewSizingMode = .viewBounds,
         onFailure: (@MainActor @Sendable (any Error) -> Void)? = nil,
         request: @escaping @MainActor @Sendable (CGSize?, CGFloat) throws -> Request,
+        @ViewBuilder content: @escaping (Image) -> Content,
         @ViewBuilder placeholder: () -> Placeholder
     ) {
         self.taskIdentifier = "sized-image"
@@ -86,6 +94,7 @@ public struct AsyncImage<Loader: MediaImageLoading, Placeholder: View>: View {
         self.sizingMode = sizingMode
         self.loadSequence = nil
         self.makeSizedSequence = nil
+        self.content = content
         self.loadImages = { [] }
         self.makeImageOperation = { targetSize, scale in
             do {
@@ -156,10 +165,11 @@ public struct AsyncImage<Loader: MediaImageLoading, Placeholder: View>: View {
                     frameLoader: sequencePlayback.frameLoader,
                     playbackPlan: sequencePlayback.playbackPlan,
                     firstImage: sequencePlayback.firstImage,
+                    content: content,
                     onFailure: onFailure
                 )
             } else if let image {
-                PlatformImage(image: image)
+                content(platformImage(image))
             } else {
                 placeholder
             }
@@ -255,15 +265,18 @@ private struct SequencePlaybackState<Loader: MediaImageLoading> {
     let firstImage: MediaImage
 }
 
-private struct SequencePlaybackView<Loader: MediaImageLoading>: View {
+private struct SequencePlaybackView<Loader: MediaImageLoading, Content: View>: View {
     @State private var model: SequencePlaybackModel<Loader>
+    private let content: (Image) -> Content
 
     init(
         frameLoader: ImageSequenceFrameLoader<Loader>,
         playbackPlan: ImageSequencePlaybackPlan,
         firstImage: MediaImage,
+        content: @escaping (Image) -> Content,
         onFailure: (@MainActor @Sendable (any Error) -> Void)?
     ) {
+        self.content = content
         _model = State(
             initialValue: SequencePlaybackModel(
                 frameLoader: frameLoader,
@@ -277,7 +290,7 @@ private struct SequencePlaybackView<Loader: MediaImageLoading>: View {
     var body: some View {
         TimelineView(.animation(minimumInterval: model.playbackPlan.frameRate.frameDuration)) { timeline in
             let position = model.position(at: timeline.date)
-            PlatformImage(image: model.image)
+            content(platformImage(model.image))
                 .onChange(of: position, initial: true) { _, position in
                     model.requestFrame(at: position)
                 }
@@ -370,17 +383,20 @@ public extension AsyncImage where Loader == DefaultMediaImageLoader<
         url: URL,
         levelOfIntegrity: Double = 1,
         prefetchCount: Int = 3,
+        resizeMode: ImageResizeMode = .fit,
         onFailure: (@MainActor @Sendable (any Error) -> Void)? = nil,
+        @ViewBuilder content: @escaping (Image) -> Content,
         @ViewBuilder placeholder: () -> Placeholder
     ) {
         let asset = RemoteMediaAsset(url: url)
         let loader = MediaImageLoader.default
-        self.taskIdentifier = asset.uniqueKey
+        self.taskIdentifier = "\(asset.uniqueKey)|resize:\(resizeMode.rawValue)"
         self.levelOfIntegrity = levelOfIntegrity
         self.sizingMode = .viewBounds
         self.makeImageOperation = nil
         self.loadSequence = nil
         self.loadImages = { [] }
+        self.content = content
         self.makeSizedSequence = { pointSize, scale in
             let pixelSize = CGSize(
                 width: (pointSize.width * scale).rounded(.up),
@@ -395,6 +411,7 @@ public extension AsyncImage where Loader == DefaultMediaImageLoader<
                         sequence: sequence,
                         using: loader,
                         targetSize: pixelSize,
+                        resizeMode: resizeMode,
                         prefetchCount: prefetchCount,
                         playbackFrameIndices: playbackPlan.frameIndices
                     ),
@@ -412,20 +429,12 @@ private struct ImageLoadingOperation {
     let load: @MainActor @Sendable () async throws -> MediaImage
 }
 
-private struct PlatformImage: View {
-    let image: MediaImage
-
-    var body: some View {
-        #if canImport(UIKit)
-        Image(uiImage: image)
-            .resizable()
-            .scaledToFit()
-        #elseif canImport(AppKit)
-        Image(nsImage: image)
-            .resizable()
-            .scaledToFit()
-        #else
-        EmptyView()
-        #endif
-    }
+private func platformImage(_ image: MediaImage) -> Image {
+    #if canImport(UIKit)
+    Image(uiImage: image)
+    #elseif canImport(AppKit)
+    Image(nsImage: image)
+    #else
+    Image(systemName: "photo")
+    #endif
 }

@@ -51,6 +51,9 @@ struct LoremPicsumView: View {
                         levelOfIntegrity: 0.9,
                         onFailure: { _ in
                             errorMessage = "GIFを読み込めませんでした。ネットワークを確認してください。"
+                        },
+                        content: { image in
+                            image.resizable().scaledToFit()
                         }
                     ) {
                         ProgressView("GIFを読み込み中…")
@@ -129,6 +132,8 @@ private struct PicsumGridCell<Loader: MediaImageLoading>: View {
             VulpUI.AsyncImage(request: request, loader: loader, onFailure: { error in
                 didFail = true
                 onFailure(error)
+            }, content: { image in
+                image.resizable().scaledToFit()
             }) {
                 if didFail {
                     Image(systemName: "exclamationmark.triangle")

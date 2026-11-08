@@ -41,7 +41,9 @@ struct SepiaImageDemoView: View {
                     .foregroundStyle(.secondary)
 
                 if let request = try? request {
-                    VulpUI.AsyncImage(request: request, loader: loader) {
+                    VulpUI.AsyncImage(request: request, loader: loader, content: { image in
+                        image.resizable().scaledToFit()
+                    }) {
                         ProgressView("画像を読み込み中…")
                     }
                     .frame(maxWidth: .infinity)

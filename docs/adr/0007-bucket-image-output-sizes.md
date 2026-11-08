@@ -1,6 +1,6 @@
 # 0007. Bucket processed image sizes by texture tiers
 
-- Status: Accepted
+- Status: Superseded by [ADR 0015](0015-preserve-source-aspect-ratio-when-resizing.md)
 - Date: 2026-11-08
 
 ## Context
