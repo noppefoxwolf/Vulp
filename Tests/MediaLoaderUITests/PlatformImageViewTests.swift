@@ -33,9 +33,9 @@ import AppKit
 import UIKit
 
 @MainActor
-@Test func uiKitImageViewDisplaysAssignedImage() async throws {
+@Test func uiKitAsyncImageViewDisplaysAssignedImage() async throws {
     let image = try await PlatformImageFixture.image()
-    let view = ImageView(frame: CGRect(x: 0, y: 0, width: 50, height: 50))
+    let view = AsyncImageView(frame: CGRect(x: 0, y: 0, width: 50, height: 50))
 
     view.image = image
 

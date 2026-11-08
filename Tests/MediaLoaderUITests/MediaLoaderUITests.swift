@@ -112,8 +112,8 @@ private enum AnimatedGIFFixture {
 #if canImport(UIKit)
 import UIKit
 
-@Test @MainActor func uiKitImageViewAcceptsPointSizeAndScaleRequestBuilder() {
-    let view = ImageView(frame: CGRect(x: 0, y: 0, width: 120, height: 80))
+@Test @MainActor func uiKitAsyncImageViewAcceptsPointSizeAndScaleRequestBuilder() {
+    let view = AsyncImageView(frame: CGRect(x: 0, y: 0, width: 120, height: 80))
     let asset = DataImageAsset(data: Data([0]), uniqueKey: "sized-uikit-view")
 
     view.loadImage(
@@ -130,7 +130,7 @@ import UIKit
     #expect(view.sizingMode == .viewBounds)
 }
 
-@Test @MainActor func platformImageViewLoadsAndPlaysImageSequence() async throws {
+@Test @MainActor func uiKitAsyncImageViewLoadsAndPlaysImageSequence() async throws {
     let loader = DefaultImageLoader(
         downloader: DefaultImageDataDownloader(),
         deserializer: ImageIOImageDeserializer(),
@@ -138,7 +138,7 @@ import UIKit
         cache: InMemoryImageCache()
     )
     let asset = DataImageAsset(data: AnimatedGIFFixture.data, uniqueKey: "platform-ui-sequence")
-    let view = ImageView()
+    let view = AsyncImageView()
 
     try await view.loadImage(
         asset: asset,

@@ -4,7 +4,7 @@ import UIKit
 
 /// A container view that owns and lays out its image view.
 @MainActor
-public final class ImageView: UIView {
+public final class AsyncImageView: UIView {
     private let imageView = UIImageView()
     private let sequencePlayback = ImageSequencePlayback()
     private var makeImageOperation: (@MainActor @Sendable (CGSize?, CGFloat) -> ImageLoadingOperation?)?

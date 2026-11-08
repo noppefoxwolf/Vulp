@@ -26,7 +26,7 @@ Add this repository in Xcode with **File > Add Package Dependencies…**, then s
 
 - `MediaLoader`: the loading pipeline
 - `MediaLoader_SwiftUI`: SwiftUI views
-- `MediaLoader_UIKit`: the UIKit `ImageView`
+- `MediaLoader_UIKit`: the UIKit `AsyncImageView`
 - `MediaLoader_AppKit`: AppKit views
 - `MediaLoaderUI`: re-exports the UI products above
 
@@ -34,14 +34,14 @@ Add this repository in Xcode with **File > Add Package Dependencies…**, then s
 
 ### UIKit
 
-Import `MediaLoaderUI` and use its UIKit `ImageView`. Call `loadImage(url:)` to load a URL at the view's size; animated sources play incrementally.
+Import `MediaLoaderUI` and use its UIKit `AsyncImageView`. Call `loadImage(url:)` to load a URL at the view's size; animated sources play incrementally.
 
 ```swift
 import MediaLoaderUI
 import UIKit
 
 let url = URL(string: "https://example.com/photo.jpg")!
-let imageView = ImageView(frame: CGRect(x: 0, y: 0, width: 200, height: 200))
+let imageView = AsyncImageView(frame: CGRect(x: 0, y: 0, width: 200, height: 200))
 imageView.loadImage(url: url)
 ```
 
@@ -113,7 +113,7 @@ import MediaLoaderUI
 import UIKit
 
 final class PhotoCell: UICollectionViewCell {
-    let photoView = ImageView()
+    let photoView = AsyncImageView()
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -227,7 +227,7 @@ The prefetch and cell requests should use the same `asset.uniqueKey`, size, rend
 
 ## Animated images
 
-`MediaLoaderUI.AsyncImage` and `ImageView` load and play multi-frame images incrementally. They do not decode every frame up front; by default, the next three frames are prefetched. Lower `prefetchCount` to reduce memory use. Use `levelOfIntegrity` to adjust the playback frame rate.
+`MediaLoaderUI.AsyncImage` and `AsyncImageView` load and play multi-frame images incrementally. They do not decode every frame up front; by default, the next three frames are prefetched. Lower `prefetchCount` to reduce memory use. Use `levelOfIntegrity` to adjust the playback frame rate.
 
 ## Customization
 
