@@ -25,7 +25,9 @@ public struct ResizeImageProcessor: ImageProcessor {
             return applying(renderingMode, to: image)
         }
 
-        let colorSpace = source.colorSpace ?? CGColorSpaceCreateDeviceRGB()
+        // Bitmap output requires an RGB space compatible with premultiplied alpha.
+        let colorSpace = source.colorSpace?.model == .rgb
+            ? source.colorSpace! : CGColorSpaceCreateDeviceRGB()
         guard let context = CGContext(
             data: nil,
             width: width,

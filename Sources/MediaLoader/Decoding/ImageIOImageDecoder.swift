@@ -45,11 +45,20 @@ public struct ImageIOImageDecoder: MediaImageSequenceDecoding {
             // ImageIO creates a reduced-resolution frame directly, avoiding a full-size decoded bitmap.
             let thumbnailOptions: [CFString: Any] = [
                 kCGImageSourceCreateThumbnailFromImageAlways: true,
+                kCGImageSourceCreateThumbnailWithTransform: true,
                 kCGImageSourceThumbnailMaxPixelSize: maximumPixelDimension,
             ]
             cgImage = CGImageSourceCreateThumbnailAtIndex(source, index, thumbnailOptions as CFDictionary)
         } else {
-            cgImage = CGImageSourceCreateImageAtIndex(source, index, nil)
+            let properties = CGImageSourceCopyPropertiesAtIndex(source, index, nil) as? [CFString: Any]
+            let width = (properties?[kCGImagePropertyPixelWidth] as? NSNumber)?.intValue ?? 1
+            let height = (properties?[kCGImagePropertyPixelHeight] as? NSNumber)?.intValue ?? 1
+            let options: [CFString: Any] = [
+                kCGImageSourceCreateThumbnailFromImageAlways: true,
+                kCGImageSourceCreateThumbnailWithTransform: true,
+                kCGImageSourceThumbnailMaxPixelSize: max(width, height),
+            ]
+            cgImage = CGImageSourceCreateThumbnailAtIndex(source, index, options as CFDictionary)
         }
         guard let cgImage else {
             throw ImageDeserializationError.invalidData
