@@ -221,3 +221,7 @@ let image = try await loader.load(request, priority: .userInitiated)
 Build a loader from the `MediaImageLoading`, `ImageDataDownloader`, `MediaImageDecoding`, `ImageProcessor`, `ImageCache`, and `ImageDataCache` protocols. Replace components in `DefaultMediaImageLoader` for custom authenticated networking or image processing.
 
 Implement `MediaAsset` to define a stable `uniqueKey`, an optional fallback image, a media type hint, and a way to load the source data.
+
+## License
+
+Vulp is available under the [MIT License](LICENSE).
