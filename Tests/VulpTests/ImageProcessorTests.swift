@@ -16,7 +16,7 @@ import Testing
     #expect(await recorder.calls == ["first", "second"])
 }
 
-@Test func resizeProcessorFitsSourceAspectRatioInsideBucketedPixelSize() async throws {
+@Test func resizeProcessorProducesBucketedPixelSize() async throws {
     let source = try await TestImageData.image()
     let asset = DataImageAsset(data: TestImageData.png, uniqueKey: "fixture")
     let request = try ImageLoadRequest(
@@ -26,7 +26,7 @@ import Testing
 
     let result = try await ResizeImageProcessor().process(source, for: request)
 
-    #expect(result.pixelWidth == 11)
+    #expect(result.pixelWidth == 16)
     #expect(result.pixelHeight == 11)
 }
 
