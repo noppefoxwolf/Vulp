@@ -55,19 +55,14 @@ import SwiftUI
 
 struct RemotePhoto: View {
     var body: some View {
-        VulpUI.AsyncImage(
-            url: URL(string: "https://example.com/photo.jpg")!,
-            content: { image in image.resizable().scaledToFit() }
-        ) {
-            ProgressView()
-        }
+        VulpUI.AsyncImage(url: URL(string: "https://example.com/photo.jpg")!)
     }
 }
 ```
 
-`VulpUI.AsyncImage(url:)` sizes the request from its displayed bounds and environment display scale. Its `content` closure receives a SwiftUI `Image`; apply `.resizable()`, `.scaledToFit()`, or other image modifiers there. The placeholder is supplied separately. It accepts an optional failure callback and plays animated sources incrementally. For custom loaders or request options, use one of the request-based initializers.
+`VulpUI.AsyncImage(url:)` sizes the request from its displayed bounds and environment display scale. To customize the image or placeholder, pass `content` and `placeholder` closures; the `content` closure receives a SwiftUI `Image`, so apply `.resizable()`, `.scaledToFit()`, or other image modifiers there. It accepts an optional failure callback and plays animated sources incrementally. For custom loaders or request options, use one of the request-based initializers.
 
-Set `resizeMode: .fill` on URL-based SwiftUI/UIKit loads or on `MediaImageRequest` to cover the requested bounds and center-crop the source. The default `.fit` mode keeps the full image visible.
+The default resize mode is `.fit`. Pass `resizeMode: .fill` to URL-based SwiftUI/UIKit loads or to `MediaImageRequest` to cover the requested bounds and center-crop the source.
 
 ## Performance-conscious loading
 

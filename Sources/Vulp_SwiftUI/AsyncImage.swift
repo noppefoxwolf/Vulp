@@ -259,6 +259,64 @@ public struct AsyncImage<Loader: MediaImageLoading, Content: View, Placeholder: 
     }
 }
 
+/// Convenience initializers that pass the loaded image through without modifiers.
+public extension AsyncImage where Content == Image {
+    init<Request: MediaImageRequestProtocol>(
+        request: Request,
+        loader: Loader,
+        onFailure: (@MainActor @Sendable (any Error) -> Void)? = nil,
+        @ViewBuilder placeholder: () -> Placeholder
+    ) {
+        self.init(
+            request: request,
+            loader: loader,
+            onFailure: onFailure,
+            content: { $0 },
+            placeholder: placeholder
+        )
+    }
+
+    init(
+        asset: any MediaAsset,
+        loader: Loader,
+        targetSize: CGSize,
+        levelOfIntegrity: Double = 1,
+        prefetchCount: Int = 3,
+        resizeMode: ImageResizeMode = .fit,
+        onFailure: (@MainActor @Sendable (any Error) -> Void)? = nil,
+        @ViewBuilder placeholder: () -> Placeholder
+    ) where Loader: MediaImageSequenceLoading {
+        self.init(
+            asset: asset,
+            loader: loader,
+            targetSize: targetSize,
+            levelOfIntegrity: levelOfIntegrity,
+            prefetchCount: prefetchCount,
+            resizeMode: resizeMode,
+            onFailure: onFailure,
+            content: { $0 },
+            placeholder: placeholder
+        )
+    }
+
+    init<Request: MediaImageRequestProtocol>(
+        loader: Loader,
+        sizingMode: ImageViewSizingMode = .viewBounds,
+        onFailure: (@MainActor @Sendable (any Error) -> Void)? = nil,
+        request: @escaping @MainActor @Sendable (CGSize?, CGFloat) throws -> Request,
+        @ViewBuilder placeholder: () -> Placeholder
+    ) {
+        self.init(
+            loader: loader,
+            sizingMode: sizingMode,
+            onFailure: onFailure,
+            request: request,
+            content: { $0 },
+            placeholder: placeholder
+        )
+    }
+}
+
 private struct SequencePlaybackState<Loader: MediaImageLoading> {
     let frameLoader: ImageSequenceFrameLoader<Loader>
     let playbackPlan: ImageSequencePlaybackPlan
@@ -421,6 +479,57 @@ public extension AsyncImage where Loader == DefaultMediaImageLoader<
         }
         self.placeholder = placeholder()
         self.onFailure = onFailure
+    }
+}
+
+public extension AsyncImage where Loader == DefaultMediaImageLoader<
+    DefaultImageDataDownloader,
+    MediaImageDecoderSet<ImageIOImageDecoder, AVFoundationVideoFrameDecoder>,
+    ResizeImageProcessor,
+    InMemoryImageCache
+>, Content == Image {
+    init(
+        url: URL,
+        levelOfIntegrity: Double = 1,
+        prefetchCount: Int = 3,
+        resizeMode: ImageResizeMode = .fit,
+        onFailure: (@MainActor @Sendable (any Error) -> Void)? = nil,
+        @ViewBuilder placeholder: () -> Placeholder
+    ) {
+        self.init(
+            url: url,
+            levelOfIntegrity: levelOfIntegrity,
+            prefetchCount: prefetchCount,
+            resizeMode: resizeMode,
+            onFailure: onFailure,
+            content: { $0 },
+            placeholder: placeholder
+        )
+    }
+}
+
+public extension AsyncImage where Loader == DefaultMediaImageLoader<
+    DefaultImageDataDownloader,
+    MediaImageDecoderSet<ImageIOImageDecoder, AVFoundationVideoFrameDecoder>,
+    ResizeImageProcessor,
+    InMemoryImageCache
+>, Content == Image, Placeholder == ProgressView<EmptyView, EmptyView> {
+    init(
+        url: URL,
+        levelOfIntegrity: Double = 1,
+        prefetchCount: Int = 3,
+        resizeMode: ImageResizeMode = .fit,
+        onFailure: (@MainActor @Sendable (any Error) -> Void)? = nil
+    ) {
+        self.init(
+            url: url,
+            levelOfIntegrity: levelOfIntegrity,
+            prefetchCount: prefetchCount,
+            resizeMode: resizeMode,
+            onFailure: onFailure,
+            content: { $0 },
+            placeholder: { ProgressView() }
+        )
     }
 }
 

@@ -128,7 +128,7 @@ private struct SequenceCancellationTrackingImageLoader: MediaImageSequenceLoadin
         targetSize: .zero
     )
 
-    let view = VulpUI.AsyncImage(request: request, loader: TestImageLoader(), content: { $0.resizable() }) {
+    let view = VulpUI.AsyncImage(request: request, loader: TestImageLoader()) {
         ProgressView()
     }
 
