@@ -1,17 +1,35 @@
 import Foundation
 
 /// Holds one in-flight image load and resumes every caller waiting for its result.
-/// Cancelling a waiter only removes that caller; it does not cancel work that may
-/// still be needed by other callers.
+/// Cancelling a waiter preserves shared work while any other caller still waits.
 actor ImageFetchFlight<Value: Sendable> {
     private var result: Result<Value, Error>?
     private var waiters: [UUID: CheckedContinuation<Value, Error>] = [:]
+    private var operationTask: Task<Void, Never>?
+    private var isCancelled = false
+
+    func install(_ operationTask: Task<Void, Never>) {
+        self.operationTask = operationTask
+        if isCancelled {
+            operationTask.cancel()
+        }
+    }
+
+    func isCancelledFlight() -> Bool {
+        isCancelled
+    }
 
     func value() async throws -> Value {
         let waiterID = UUID()
         return try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { continuation in
                 if Task.isCancelled {
+                    if waiters.isEmpty, result == nil {
+                        isCancelled = true
+                        operationTask?.cancel()
+                    }
+                    continuation.resume(throwing: CancellationError())
+                } else if isCancelled {
                     continuation.resume(throwing: CancellationError())
                 } else if let result {
                     continuation.resume(with: result)
@@ -34,6 +52,10 @@ actor ImageFetchFlight<Value: Sendable> {
 
     private func cancel(_ waiterID: UUID) {
         waiters.removeValue(forKey: waiterID)?.resume(throwing: CancellationError())
+        if waiters.isEmpty, result == nil {
+            isCancelled = true
+            operationTask?.cancel()
+        }
     }
 }
 
@@ -47,11 +69,12 @@ actor ImageFetchDeduper<Value: Sendable> {
     /// Returns the existing load for `key`, or starts `operation` if none exists.
     func load(
         forKey key: String,
+        priority: TaskPriority = .userInitiated,
         operation: @escaping @Sendable () async throws -> Value
     ) async throws -> Value {
-        let (flight, isLeader) = join(key)
+        let (flight, isLeader) = await join(key)
         if isLeader {
-            Task {
+            let operationTask = Task(priority: priority) {
                 do {
                     await flight.complete(.success(try await operation()))
                 } catch {
@@ -59,13 +82,17 @@ actor ImageFetchDeduper<Value: Sendable> {
                 }
                 remove(key, flight: flight)
             }
+            await flight.install(operationTask)
         }
         return try await flight.value()
     }
 
-    private func join(_ key: String) -> (flight: ImageFetchFlight<Value>, isLeader: Bool) {
+    private func join(_ key: String) async -> (flight: ImageFetchFlight<Value>, isLeader: Bool) {
         if let flight = flights[key] {
-            return (flight, false)
+            if !(await flight.isCancelledFlight()) {
+                return (flight, false)
+            }
+            flights.removeValue(forKey: key)
         }
 
         let flight = ImageFetchFlight<Value>()

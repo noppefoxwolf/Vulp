@@ -9,6 +9,71 @@ import AppKit
 public protocol MediaImageLoading: Sendable {
     @concurrent
     func load<Request: MediaImageRequestProtocol>(_ request: Request) async throws -> MediaImage
+
+    @concurrent
+    func load<Request: MediaImageRequestProtocol>(
+        _ request: Request,
+        priority: TaskPriority
+    ) async throws -> MediaImage
+}
+
+public extension MediaImageLoading {
+    /// Loads a request from a task created at the supplied scheduling priority.
+    ///
+    /// Conforming loaders may provide a more direct implementation. The default
+    /// keeps existing custom loaders source-compatible.
+    @concurrent
+    func load<Request: MediaImageRequestProtocol>(
+        _ request: Request,
+        priority: TaskPriority
+    ) async throws -> MediaImage {
+        let task = Task(priority: priority) {
+            try await load(request)
+        }
+        return try await withTaskCancellationHandler {
+            try await task.value
+        } onCancel: {
+            task.cancel()
+        }
+    }
+
+    /// Starts a low-priority request intended to warm the image cache.
+    func prefetch<Request: MediaImageRequestProtocol>(
+        _ request: Request,
+        priority: TaskPriority = .background
+    ) -> MediaImagePrefetchTask {
+        let task = Task(priority: priority) { [self] in
+            do {
+                _ = try await load(request, priority: priority)
+            } catch is CancellationError {
+                // Cancellation is expected when a prefetched item leaves the
+                // collection's visible prefetch window.
+            } catch {
+                // A visible load can retry and report the failure to the UI.
+            }
+        }
+        return MediaImagePrefetchTask(task: task)
+    }
+}
+
+/// A cancellable handle for a cache-warming request.
+public struct MediaImagePrefetchTask: Sendable {
+    private let task: Task<Void, Never>
+
+    fileprivate init(task: Task<Void, Never>) {
+        self.task = task
+    }
+
+    /// Cancels this prefetch waiter. A shared load continues while other
+    /// callers still need its result.
+    public func cancel() {
+        task.cancel()
+    }
+
+    /// Waits until the prefetch finishes or its waiter is cancelled.
+    public func value() async {
+        await task.value
+    }
 }
 
 public typealias ImageLoading = MediaImageLoading
@@ -70,21 +135,30 @@ public struct DefaultMediaImageLoader<Downloader: ImageDataDownloader, Decoder: 
 
     @concurrent
     public func load<Request: MediaImageRequestProtocol>(_ request: Request) async throws -> MediaImage {
+        try await load(request, priority: .userInitiated)
+    }
+
+    @concurrent
+    public func load<Request: MediaImageRequestProtocol>(
+        _ request: Request,
+        priority: TaskPriority
+    ) async throws -> MediaImage {
         try await load(request, process: { image in
             try await processor.process(image, for: request)
-        })
+        }, priority: priority)
     }
 
     private func load<Request: MediaImageRequestProtocol>(
         _ request: Request,
-        process: @escaping @Sendable (MediaImage) async throws -> MediaImage
+        process: @escaping @Sendable (MediaImage) async throws -> MediaImage,
+        priority: TaskPriority = .userInitiated
     ) async throws -> MediaImage {
         if let cached = await cache.image(forKey: request.cacheIdentifier) {
             return cached
         }
 
-        return try await fetchDeduper.load(forKey: request.cacheIdentifier) {
-            let (image, usedFallback) = try await loadUncached(request, process: process)
+        return try await fetchDeduper.load(forKey: request.cacheIdentifier, priority: priority) {
+            let (image, usedFallback) = try await loadUncached(request, process: process, priority: priority)
             if !usedFallback {
                 await cache.insert(image, forKey: request.cacheIdentifier)
             }
@@ -94,7 +168,8 @@ public struct DefaultMediaImageLoader<Downloader: ImageDataDownloader, Decoder: 
 
     private func loadUncached<Request: MediaImageRequestProtocol>(
         _ request: Request,
-        process: @Sendable (MediaImage) async throws -> MediaImage
+        process: @Sendable (MediaImage) async throws -> MediaImage,
+        priority: TaskPriority
     ) async throws -> (MediaImage, usedFallback: Bool) {
         let longestTargetEdge = max(request.targetSize.width, request.targetSize.height)
         // This caps decoder output; `request.targetSize` remains the processor's final output size.
@@ -113,13 +188,19 @@ public struct DefaultMediaImageLoader<Downloader: ImageDataDownloader, Decoder: 
             try Task.checkCancellation()
             switch MediaSourceResolver.resolution(for: asset) {
             case .imageData:
-                image = try await decodeImageData(for: asset, request: request, maximumPixelDimension: maximumPixelDimension)
+                image = try await decodeImageData(
+                    for: asset,
+                    request: request,
+                    maximumPixelDimension: maximumPixelDimension,
+                    priority: priority
+                )
             case .videoURL(let url):
                 image = try await decodeVideoOrRecheck(
                     url,
                     asset: asset,
                     request: request,
-                    maximumPixelDimension: maximumPixelDimension
+                    maximumPixelDimension: maximumPixelDimension,
+                    priority: priority
                 )
             case .probeVideoURL(let url):
                 do {
@@ -129,7 +210,12 @@ public struct DefaultMediaImageLoader<Downloader: ImageDataDownloader, Decoder: 
                         maximumPixelDimension: maximumPixelDimension
                     )
                 } catch MediaImageDecodingError.unsupportedSource {
-                    image = try await decodeImageData(for: asset, request: request, maximumPixelDimension: maximumPixelDimension)
+                    image = try await decodeImageData(
+                        for: asset,
+                        request: request,
+                        maximumPixelDimension: maximumPixelDimension,
+                        priority: priority
+                    )
                 }
             }
             usedFallback = false
@@ -148,7 +234,8 @@ public struct DefaultMediaImageLoader<Downloader: ImageDataDownloader, Decoder: 
         _ url: URL,
         asset: any MediaAsset,
         request: Request,
-        maximumPixelDimension: Int?
+        maximumPixelDimension: Int?,
+        priority: TaskPriority
     ) async throws -> MediaImage {
         do {
             return try await decodeVideoFrame(
@@ -157,7 +244,12 @@ public struct DefaultMediaImageLoader<Downloader: ImageDataDownloader, Decoder: 
                 maximumPixelDimension: maximumPixelDimension
             )
         } catch MediaImageDecodingError.unsupportedSource {
-            return try await decodeImageData(for: asset, request: request, maximumPixelDimension: maximumPixelDimension)
+            return try await decodeImageData(
+                for: asset,
+                request: request,
+                maximumPixelDimension: maximumPixelDimension,
+                priority: priority
+            )
         }
     }
 
@@ -179,9 +271,10 @@ public struct DefaultMediaImageLoader<Downloader: ImageDataDownloader, Decoder: 
     private func decodeImageData<Request: MediaImageRequestProtocol>(
         for asset: any MediaAsset,
         request: Request,
-        maximumPixelDimension: Int?
+        maximumPixelDimension: Int?,
+        priority: TaskPriority
     ) async throws -> MediaImage {
-        let data = try await data(for: asset)
+        let data = try await data(for: asset, priority: priority)
         try Task.checkCancellation()
         return try await decoder.deserialize(
             data,
@@ -190,11 +283,14 @@ public struct DefaultMediaImageLoader<Downloader: ImageDataDownloader, Decoder: 
         )
     }
 
-    private func data(for asset: any MediaAsset) async throws -> Data {
+    private func data(
+        for asset: any MediaAsset,
+        priority: TaskPriority = .userInitiated
+    ) async throws -> Data {
         if let cached = await dataCache.data(forKey: asset.uniqueKey) {
             return cached
         }
-        return try await assetDataFetchDeduper.load(forKey: asset.uniqueKey) { [self] in
+        return try await assetDataFetchDeduper.load(forKey: asset.uniqueKey, priority: priority) { [self] in
             let downloaded = try await asset.loadData(using: downloader)
             await dataCache.insert(downloaded, forKey: asset.uniqueKey)
             return downloaded

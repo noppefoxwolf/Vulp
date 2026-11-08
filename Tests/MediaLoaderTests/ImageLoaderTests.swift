@@ -45,6 +45,95 @@ import Testing
     #expect(await downloader.callCount == 1)
 }
 
+@Test func prefetchLoadsImageIntoSharedCache() async throws {
+    let downloader = CountingDownloader()
+    let loader = DefaultImageLoader(
+        downloader: downloader,
+        deserializer: ImageIOImageDeserializer(),
+        processor: ResizeImageProcessor(),
+        cache: InMemoryImageCache()
+    )
+    let asset = RemoteImageAsset(
+        url: URL(string: "https://example.com/prefetch.png")!,
+        uniqueKey: "prefetch-\(UUID().uuidString)"
+    )
+    let request = try ImageLoadRequest(assetHandle: asset, targetSize: .zero)
+
+    let prefetch = loader.prefetch(request)
+    await prefetch.value()
+    _ = try await loader.load(request)
+
+    #expect(await downloader.callCount == 1)
+}
+
+@Test func imageLoadAcceptsExplicitTaskPriority() async throws {
+    let downloader = CountingDownloader()
+    let loader = DefaultImageLoader(
+        downloader: downloader,
+        deserializer: ImageIOImageDeserializer(),
+        processor: ResizeImageProcessor(),
+        cache: InMemoryImageCache()
+    )
+    let asset = RemoteImageAsset(
+        url: URL(string: "https://example.com/priority.png")!,
+        uniqueKey: "priority-\(UUID().uuidString)"
+    )
+    let request = try ImageLoadRequest(assetHandle: asset, targetSize: .zero)
+
+    _ = try await loader.load(request, priority: .background)
+
+    #expect(await downloader.lastPriority == .background)
+}
+
+@Test func cancellingPrefetchWaiterDoesNotCancelSharedLoad() async throws {
+    let downloader = CountingDownloader(delay: .milliseconds(250))
+    let loader = DefaultImageLoader(
+        downloader: downloader,
+        deserializer: ImageIOImageDeserializer(),
+        processor: ResizeImageProcessor(),
+        cache: InMemoryImageCache()
+    )
+    let asset = RemoteImageAsset(
+        url: URL(string: "https://example.com/prefetch-cancel.png")!,
+        uniqueKey: "prefetch-cancel-\(UUID().uuidString)"
+    )
+    let request = try ImageLoadRequest(assetHandle: asset, targetSize: .zero)
+    let prefetch = loader.prefetch(request)
+    let visibleLoad = Task { try await loader.load(request) }
+    try await Task.sleep(for: .milliseconds(30))
+
+    prefetch.cancel()
+    await prefetch.value()
+    _ = try await visibleLoad.value
+
+    #expect(await downloader.callCount == 1)
+}
+
+@Test func cancellingOnlyPrefetchCancelsUnderlyingLoadAndAllowsRetry() async throws {
+    let downloader = CountingDownloader(delay: .seconds(2))
+    let loader = DefaultImageLoader(
+        downloader: downloader,
+        deserializer: ImageIOImageDeserializer(),
+        processor: ResizeImageProcessor(),
+        cache: InMemoryImageCache()
+    )
+    let asset = RemoteImageAsset(
+        url: URL(string: "https://example.com/prefetch-only-cancel.png")!,
+        uniqueKey: "prefetch-only-cancel-\(UUID().uuidString)"
+    )
+    let request = try ImageLoadRequest(assetHandle: asset, targetSize: .zero)
+    let prefetch = loader.prefetch(request)
+    try await Task.sleep(for: .milliseconds(50))
+
+    prefetch.cancel()
+    await prefetch.value()
+    try await Task.sleep(for: .milliseconds(20))
+
+    #expect(await downloader.cancellationCount == 1)
+    _ = try await loader.load(request)
+    #expect(await downloader.callCount == 2)
+}
+
 @Test func imageLoaderDeduplicatesConcurrentAssetDownloadsAcrossRequests() async throws {
     let downloader = CountingDownloader(delay: .milliseconds(250))
     let loader = DefaultImageLoader(

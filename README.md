@@ -146,8 +146,7 @@ final class PhotoDataSource: NSObject,
 {
     let urls: [URL]
     let loader = MediaImageLoader.default
-    private var prefetchTasks: [IndexPath: Task<Void, Never>] = [:]
-    private var prefetchIDs: [IndexPath: UUID] = [:]
+    private var prefetchTasks: [IndexPath: MediaImagePrefetchTask] = [:]
 
     init(urls: [URL]) {
         self.urls = urls
@@ -189,24 +188,7 @@ final class PhotoDataSource: NSObject,
     ) {
         for indexPath in indexPaths where prefetchTasks[indexPath] == nil {
             guard let request = try? request(at: indexPath) else { continue }
-            let loader = self.loader
-            let id = UUID()
-            prefetchIDs[indexPath] = id
-            prefetchTasks[indexPath] = Task {
-                defer {
-                    if prefetchIDs[indexPath] == id {
-                        prefetchIDs[indexPath] = nil
-                        prefetchTasks[indexPath] = nil
-                    }
-                }
-                do {
-                    _ = try await loader.load(request)
-                } catch is CancellationError {
-                    // The item is no longer expected soon.
-                } catch {
-                    // The cell can retry when it appears.
-                }
-            }
+            prefetchTasks[indexPath] = loader.prefetch(request)
         }
     }
 
@@ -215,7 +197,6 @@ final class PhotoDataSource: NSObject,
         cancelPrefetchingForItemsAt indexPaths: [IndexPath]
     ) {
         for indexPath in indexPaths {
-            prefetchIDs[indexPath] = nil
             prefetchTasks[indexPath]?.cancel()
             prefetchTasks[indexPath] = nil
         }
@@ -224,6 +205,12 @@ final class PhotoDataSource: NSObject,
 ```
 
 The prefetch and cell requests should use the same `asset.uniqueKey`, size, rendering mode, and decoding options so they produce the same cache key. Cancel a cell's load task during reuse so an old result cannot be assigned to a reused cell.
+
+`MediaImageLoading.prefetch(_:)` returns a cancellable `MediaImagePrefetchTask` and defaults to `.background` priority. Cancel it when an item leaves the prefetch window. The active shared load is cancelled when its last waiter goes away; cancelling one waiter does not interrupt a load still used by another caller. Set an explicit priority for visible work when needed:
+
+```swift
+let image = try await loader.load(request, priority: .userInitiated)
+```
 
 ## Animated images
 
