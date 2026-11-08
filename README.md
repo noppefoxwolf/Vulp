@@ -17,7 +17,7 @@ Vulp is an image and video thumbnail loading library built with Swift Concurrenc
 ## Requirements
 
 - Swift 6.4+
-- iOS 16+
+- iOS 18+
 - macOS 14+
 
 ## Installation
