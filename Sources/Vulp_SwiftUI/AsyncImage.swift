@@ -1,5 +1,5 @@
 import SwiftUI
-@_exported import MediaLoader
+@_exported import Vulp
 
 /// Loads and displays an image, playing it when the loaded source contains multiple frames.
 public struct AsyncImage<Loader: MediaImageLoading, Placeholder: View>: View {

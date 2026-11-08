@@ -1,4 +1,4 @@
-import MediaLoaderUI
+import VulpUI
 import SwiftUI
 
 private typealias SizedExampleLoader = DefaultMediaImageLoader<
@@ -47,7 +47,7 @@ struct SizedImageDemoView: View {
                     .font(.body)
                     .foregroundStyle(.secondary)
 
-                MediaLoaderUI.AsyncImage(
+                VulpUI.AsyncImage(
                     loader: loader,
                     request: { pixelSize, scale in
                         let pointSize = pixelSize ?? CGSize(width: viewSize, height: viewSize)

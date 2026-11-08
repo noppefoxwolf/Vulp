@@ -1,6 +1,6 @@
-# MediaLoader
+# Vulp
 
-MediaLoader is an image and video thumbnail loading library built with Swift Concurrency. It handles downloading, decoding, resizing, and caching, with integrations for SwiftUI, UIKit, and AppKit.
+Vulp is an image and video thumbnail loading library built with Swift Concurrency. It handles downloading, decoding, resizing, and caching, with integrations for SwiftUI, UIKit, and AppKit.
 
 ## Features
 
@@ -24,20 +24,20 @@ MediaLoader is an image and video thumbnail loading library built with Swift Con
 
 Add this repository in Xcode with **File > Add Package Dependencies…**, then select the products your target needs:
 
-- `MediaLoader`: the loading pipeline
-- `MediaLoader_SwiftUI`: SwiftUI views
-- `MediaLoader_UIKit`: the UIKit `AsyncImageView`
-- `MediaLoader_AppKit`: AppKit views
-- `MediaLoaderUI`: re-exports the UI products above
+- `Vulp`: the loading pipeline
+- `Vulp_SwiftUI`: SwiftUI views
+- `Vulp_UIKit`: the UIKit `AsyncImageView`
+- `Vulp_AppKit`: AppKit views
+- `VulpUI`: re-exports the UI products above
 
 ## Quick start
 
 ### UIKit
 
-Import `MediaLoaderUI` and use its UIKit `AsyncImageView`. Call `loadImage(url:)` to load a URL at the view's size; animated sources play incrementally.
+Import `VulpUI` and use its UIKit `AsyncImageView`. Call `loadImage(url:)` to load a URL at the view's size; animated sources play incrementally.
 
 ```swift
-import MediaLoaderUI
+import VulpUI
 import UIKit
 
 let url = URL(string: "https://example.com/photo.jpg")!
@@ -50,26 +50,26 @@ Call it after the view has its final bounds. The view owns and cancels its loadi
 ### SwiftUI
 
 ```swift
-import MediaLoaderUI
+import VulpUI
 import SwiftUI
 
 struct RemotePhoto: View {
     var body: some View {
-        MediaLoaderUI.AsyncImage(url: URL(string: "https://example.com/photo.jpg")!) {
+        VulpUI.AsyncImage(url: URL(string: "https://example.com/photo.jpg")!) {
             ProgressView()
         }
     }
 }
 ```
 
-`MediaLoaderUI.AsyncImage(url:)` sizes the request from its displayed bounds and environment display scale. It accepts an optional failure callback and plays animated sources incrementally. For custom loaders or request options, use one of the request-based initializers.
+`VulpUI.AsyncImage(url:)` sizes the request from its displayed bounds and environment display scale. It accepts an optional failure callback and plays animated sources incrementally. For custom loaders or request options, use one of the request-based initializers.
 
 ## Performance-conscious loading
 
 Share a loader across screens and cells instead of creating one for each view. The memory cache stores decoded images, while the disk cache stores encoded source data. If an image is requested at another size, the loader can decode it again from the cached source data without downloading it again.
 
 ```swift
-import MediaLoader
+import Vulp
 
 typealias AppImageLoader = DefaultMediaImageLoader<
     DefaultImageDataDownloader,
@@ -108,8 +108,8 @@ The standard `ImageIOImageDecoder` downsamples during decoding using the request
 Use the same loader and request builder for `UICollectionViewDataSourcePrefetching` and cell display. A prefetched request warms the cache for the cell. Cancel prefetch tasks when the collection view reports that an item is no longer needed.
 
 ```swift
-import MediaLoader
-import MediaLoaderUI
+import Vulp
+import VulpUI
 import UIKit
 
 final class PhotoCell: UICollectionViewCell {
@@ -214,7 +214,7 @@ let image = try await loader.load(request, priority: .userInitiated)
 
 ## Animated images
 
-`MediaLoaderUI.AsyncImage` and `AsyncImageView` load and play multi-frame images incrementally. They do not decode every frame up front; by default, the next three frames are prefetched. Lower `prefetchCount` to reduce memory use. Use `levelOfIntegrity` to adjust the playback frame rate.
+`VulpUI.AsyncImage` and `AsyncImageView` load and play multi-frame images incrementally. They do not decode every frame up front; by default, the next three frames are prefetched. Lower `prefetchCount` to reduce memory use. Use `levelOfIntegrity` to adjust the playback frame rate.
 
 ## Customization
 

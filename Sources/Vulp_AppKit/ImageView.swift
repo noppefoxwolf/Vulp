@@ -1,6 +1,6 @@
 #if canImport(AppKit)
 import AppKit
-@_exported import MediaLoader
+@_exported import Vulp
 
 public enum ImageContentMode: String, Sendable {
     case scaleToFill

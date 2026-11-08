@@ -1,6 +1,6 @@
 # Architecture Decision Records
 
-This directory stores decisions that affect MediaLoader's architecture and public API.
+This directory stores decisions that affect Vulp's architecture and public API.
 
 ## Adding a decision
 

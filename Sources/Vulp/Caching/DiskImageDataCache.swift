@@ -24,8 +24,8 @@ public actor DiskImageDataCache: ImageDataCache {
         fileManager: FileManager = .default
     ) {
         self.directory = directory ?? fileManager.urls(for: .cachesDirectory, in: .userDomainMask)
-            .first?.appendingPathComponent("MediaLoader/Originals", isDirectory: true)
-            ?? fileManager.temporaryDirectory.appendingPathComponent("MediaLoader/Originals", isDirectory: true)
+            .first?.appendingPathComponent("Vulp/Originals", isDirectory: true)
+            ?? fileManager.temporaryDirectory.appendingPathComponent("Vulp/Originals", isDirectory: true)
         self.maxSizeBytes = max(0, maxSizeBytes)
         self.maxAge = max(0, maxAge)
     }

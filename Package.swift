@@ -4,83 +4,83 @@
 import PackageDescription
 
 let package = Package(
-    name: "MediaLoader",
+    name: "Vulp",
     platforms: [
         .iOS(.v16),
         .macOS(.v14),
     ],
     products: [
         .library(
-            name: "MediaLoader",
-            targets: ["MediaLoader"]
+            name: "Vulp",
+            targets: ["Vulp"]
         ),
         .library(
-            name: "MediaLoader_SwiftUI",
-            targets: ["MediaLoader_SwiftUI"]
+            name: "Vulp_SwiftUI",
+            targets: ["Vulp_SwiftUI"]
         ),
         .library(
-            name: "MediaLoader_UIKit",
-            targets: ["MediaLoader_UIKit"]
+            name: "Vulp_UIKit",
+            targets: ["Vulp_UIKit"]
         ),
         .library(
-            name: "MediaLoader_AppKit",
-            targets: ["MediaLoader_AppKit"]
+            name: "Vulp_AppKit",
+            targets: ["Vulp_AppKit"]
         ),
         .library(
-            name: "MediaLoaderUI",
-            targets: ["MediaLoaderUI"]
+            name: "VulpUI",
+            targets: ["VulpUI"]
         ),
     ],
     targets: [
         .target(
-            name: "MediaLoader",
+            name: "Vulp",
             swiftSettings: [
                 .enableUpcomingFeature("ApproachableConcurrency"),
             ],
         ),
         .target(
-            name: "MediaLoader_SwiftUI",
-            dependencies: ["MediaLoader"],
-            swiftSettings: [
-                .defaultIsolation(MainActor.self),
-                .enableUpcomingFeature("ApproachableConcurrency"),
-            ],
-        ),
-        .target(
-            name: "MediaLoader_UIKit",
-            dependencies: ["MediaLoader"],
+            name: "Vulp_SwiftUI",
+            dependencies: ["Vulp"],
             swiftSettings: [
                 .defaultIsolation(MainActor.self),
                 .enableUpcomingFeature("ApproachableConcurrency"),
             ],
         ),
         .target(
-            name: "MediaLoader_AppKit",
-            dependencies: ["MediaLoader"],
+            name: "Vulp_UIKit",
+            dependencies: ["Vulp"],
             swiftSettings: [
                 .defaultIsolation(MainActor.self),
                 .enableUpcomingFeature("ApproachableConcurrency"),
             ],
         ),
         .target(
-            name: "MediaLoaderUI",
-            dependencies: ["MediaLoader", "MediaLoader_SwiftUI", "MediaLoader_UIKit", "MediaLoader_AppKit"],
+            name: "Vulp_AppKit",
+            dependencies: ["Vulp"],
+            swiftSettings: [
+                .defaultIsolation(MainActor.self),
+                .enableUpcomingFeature("ApproachableConcurrency"),
+            ],
+        ),
+        .target(
+            name: "VulpUI",
+            dependencies: ["Vulp", "Vulp_SwiftUI", "Vulp_UIKit", "Vulp_AppKit"],
             swiftSettings: [
                 .defaultIsolation(MainActor.self),
                 .enableUpcomingFeature("ApproachableConcurrency"),
             ],
         ),
         .testTarget(
-            name: "MediaLoaderTests",
-            dependencies: ["MediaLoader"],
+            name: "VulpTests",
+            dependencies: ["Vulp"],
             resources: [.copy("Fixtures")],
             swiftSettings: [
                 .enableUpcomingFeature("ApproachableConcurrency"),
             ],
         ),
         .testTarget(
-            name: "MediaLoaderUITests",
-            dependencies: ["MediaLoader", "MediaLoaderUI"],
+            name: "VulpUITests",
+            dependencies: ["Vulp", "VulpUI"],
             swiftSettings: [
                 .enableUpcomingFeature("ApproachableConcurrency"),
             ],

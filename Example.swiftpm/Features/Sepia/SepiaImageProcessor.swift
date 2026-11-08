@@ -1,6 +1,6 @@
 import CoreImage
 import CoreImage.CIFilterBuiltins
-import MediaLoaderUI
+import VulpUI
 import UIKit
 
 struct SepiaImageProcessor: ImageProcessor {

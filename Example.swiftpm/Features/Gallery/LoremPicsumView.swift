@@ -1,4 +1,4 @@
-import MediaLoaderUI
+import VulpUI
 import SwiftUI
 
 private typealias ExampleLoader = DefaultMediaImageLoader<
@@ -41,7 +41,7 @@ struct LoremPicsumView: View {
                     Text("アニメーションGIF")
                         .font(.headline)
 
-                    MediaLoaderUI.AsyncImage(
+                    VulpUI.AsyncImage(
                         asset: RemoteMediaAsset(
                             url: URL(string: "https://upload.wikimedia.org/wikipedia/commons/2/2c/Rotating_earth_%28large%29.gif")!,
                             uniqueKey: "example-rotating-earth-gif"
@@ -126,7 +126,7 @@ private struct PicsumGridCell<Loader: MediaImageLoading>: View {
         .aspectRatio(1, contentMode: .fit)
         .background(.quaternary, in: RoundedRectangle(cornerRadius: 12))
         .overlay {
-            MediaLoaderUI.AsyncImage(request: request, loader: loader, onFailure: { error in
+            VulpUI.AsyncImage(request: request, loader: loader, onFailure: { error in
                 didFail = true
                 onFailure(error)
             }) {

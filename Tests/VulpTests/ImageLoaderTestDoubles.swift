@@ -1,5 +1,5 @@
 import Foundation
-import MediaLoader
+import Vulp
 
 actor CountingDownloader: ImageDataDownloader {
     private let delay: Duration

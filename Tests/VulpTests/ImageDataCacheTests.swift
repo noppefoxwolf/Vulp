@@ -1,10 +1,10 @@
 import Foundation
-import MediaLoader
+import Vulp
 import Testing
 
 @Test func diskImageDataCachePersistsDataAcrossInstances() async throws {
     let directory = FileManager.default.temporaryDirectory
-        .appendingPathComponent("MediaLoaderTests-\(UUID().uuidString)", isDirectory: true)
+        .appendingPathComponent("VulpTests-\(UUID().uuidString)", isDirectory: true)
     defer { try? FileManager.default.removeItem(at: directory) }
     let data = TestImageData.png
 
@@ -17,7 +17,7 @@ import Testing
 
 @Test func imageLoaderReadsOriginalDataFromDiskCacheBeforeDownloading() async throws {
     let directory = FileManager.default.temporaryDirectory
-        .appendingPathComponent("MediaLoaderTests-\(UUID().uuidString)", isDirectory: true)
+        .appendingPathComponent("VulpTests-\(UUID().uuidString)", isDirectory: true)
     defer { try? FileManager.default.removeItem(at: directory) }
     let dataCache = DiskImageDataCache(directory: directory)
     let firstDownloader = CountingDownloader()

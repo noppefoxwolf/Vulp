@@ -1,6 +1,6 @@
 #if canImport(UIKit)
 import UIKit
-@_exported import MediaLoader
+@_exported import Vulp
 
 /// A container view that owns and lays out its image view.
 @MainActor

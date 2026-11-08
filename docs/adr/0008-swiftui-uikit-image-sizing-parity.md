@@ -5,13 +5,13 @@
 
 ## Context
 
-MediaLoader provides both SwiftUI and UIKit integrations. Routing SwiftUI through `UIViewRepresentable` could share some UIKit view behavior, but it would couple the SwiftUI integration to UIKit and require a separate AppKit path on macOS. The image size and cache behavior should remain consistent without forcing the view frameworks to share one wrapper implementation.
+Vulp provides both SwiftUI and UIKit integrations. Routing SwiftUI through `UIViewRepresentable` could share some UIKit view behavior, but it would couple the SwiftUI integration to UIKit and require a separate AppKit path on macOS. The image size and cache behavior should remain consistent without forcing the view frameworks to share one wrapper implementation.
 
 ## Decision
 
 - Keep SwiftUI and UIKit integrations native to their UI frameworks.
 - Expose size behavior through `ImageViewSizingMode` on the existing image views instead of adding a separate view type for each sizing feature.
-- Keep image sizing, bucket selection, processing, and cache-key behavior in the shared `MediaLoader` core.
+- Keep image sizing, bucket selection, processing, and cache-key behavior in the shared `Vulp` core.
 - Size-aware SwiftUI integrations convert laid-out points to pixels with SwiftUI's `displayScale`; UIKit integrations use the view's display scale for the same conversion.
 - Both integrations pass pixel dimensions through the same size bucketing and loading pipeline. Framework-specific adapters may differ in layout and rendering lifecycle, but must not change the resulting processing size or cache identity for equivalent view sizes and display scales.
 - Sequence-loading APIs continue to accept an explicit pixel `targetSize`; their frame requests use the same core size bucketing and cache-key rules.

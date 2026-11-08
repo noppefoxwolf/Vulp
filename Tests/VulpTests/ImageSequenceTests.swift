@@ -1,6 +1,6 @@
 import CoreGraphics
 import Foundation
-@testable import MediaLoader
+@testable import Vulp
 import Testing
 
 @Test func imageSequencePlaybackPlanSelectsRefreshRateFromFrameTiming() {

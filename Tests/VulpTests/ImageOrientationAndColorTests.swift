@@ -1,7 +1,7 @@
 import CoreGraphics
 import Foundation
 import ImageIO
-import MediaLoader
+import Vulp
 import Testing
 
 @Test(arguments: [Optional<Int>.none, 16])

@@ -1,7 +1,7 @@
 #if canImport(UIKit)
 import UIKit
 
-/// Platform image type used by MediaLoader.
+/// Platform image type used by Vulp.
 public typealias MediaImage = UIImage
 
 public extension UIImage {
@@ -12,7 +12,7 @@ public extension UIImage {
 #elseif canImport(AppKit)
 import AppKit
 
-/// Platform image type used by MediaLoader.
+/// Platform image type used by Vulp.
 public typealias MediaImage = NSImage
 
 public extension NSImage {

@@ -1,5 +1,5 @@
-import MediaLoader
-import MediaLoaderUI
+import Vulp
+import VulpUI
 import SwiftUI
 import Testing
 
@@ -28,7 +28,7 @@ private enum TestImageLoaderError: Error {
         targetSize: .zero
     )
 
-    let view = MediaLoaderUI.AsyncImage(request: request, loader: TestImageLoader()) {
+    let view = VulpUI.AsyncImage(request: request, loader: TestImageLoader()) {
         ProgressView()
     }
 
@@ -36,7 +36,7 @@ private enum TestImageLoaderError: Error {
 }
 
 @Test @MainActor func imageLoaderViewBuildsARequestFromViewSizeAndScale() {
-    let view = MediaLoaderUI.AsyncImage(
+    let view = VulpUI.AsyncImage(
         loader: TestImageLoader(),
         request: { targetSize, scale in
             try ImageLoadRequest(
@@ -60,7 +60,7 @@ private enum TestImageLoaderError: Error {
         cache: InMemoryImageCache()
     )
     let asset = DataImageAsset(data: Data([0]), uniqueKey: "sequence-view")
-    let view = MediaLoaderUI.AsyncImage(
+    let view = VulpUI.AsyncImage(
         asset: asset,
         loader: loader,
         targetSize: CGSize(width: 16, height: 16),

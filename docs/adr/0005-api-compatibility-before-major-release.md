@@ -5,7 +5,7 @@
 
 ## Context
 
-MediaLoader's public API is still being shaped. Requiring backward compatibility before the first major release would constrain API improvements before the library's initial stable contract has been established.
+Vulp's public API is still being shaped. Requiring backward compatibility before the first major release would constrain API improvements before the library's initial stable contract has been established.
 
 ## Decision
 

@@ -1,4 +1,4 @@
-import MediaLoaderUI
+import VulpUI
 import SwiftUI
 
 struct ContentView: View {
@@ -25,7 +25,7 @@ struct ContentView: View {
                     VideoThumbnailDemoView()
                 }
             }
-            .navigationTitle("MediaLoader Example")
+            .navigationTitle("Vulp Example")
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
                     Button(role: .destructive) {

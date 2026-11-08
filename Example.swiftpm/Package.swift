@@ -35,13 +35,13 @@ let package = Package(
         )
     ],
     dependencies: [
-        .package(name: "MediaLoader", path: "..")
+        .package(name: "Vulp", path: "..")
     ],
     targets: [
         .executableTarget(
             name: "AppModule",
             dependencies: [
-                .product(name: "MediaLoaderUI", package: "MediaLoader")
+                .product(name: "VulpUI", package: "Vulp")
             ],
             path: "."
         )

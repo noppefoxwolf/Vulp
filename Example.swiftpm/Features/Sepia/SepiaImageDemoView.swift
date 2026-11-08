@@ -1,4 +1,4 @@
-import MediaLoaderUI
+import VulpUI
 import SwiftUI
 
 private typealias SepiaProcessor = ImageProcessorChain<ResizeImageProcessor, SepiaImageProcessor>
@@ -41,7 +41,7 @@ struct SepiaImageDemoView: View {
                     .foregroundStyle(.secondary)
 
                 if let request = try? request {
-                    MediaLoaderUI.AsyncImage(request: request, loader: loader) {
+                    VulpUI.AsyncImage(request: request, loader: loader) {
                         ProgressView("画像を読み込み中…")
                     }
                     .frame(maxWidth: .infinity)

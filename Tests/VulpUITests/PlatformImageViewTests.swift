@@ -1,6 +1,6 @@
 import Foundation
-import MediaLoader
-import MediaLoaderUI
+import Vulp
+import VulpUI
 import Testing
 
 private enum PlatformImageFixture {

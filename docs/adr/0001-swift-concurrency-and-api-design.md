@@ -5,7 +5,7 @@
 
 ## Context
 
-MediaLoader is a Swift image-loading library. Its implementation should make capability selection explicit, keep shared mutable state concurrency-safe, and remain straightforward to test and use from Swift.
+Vulp is a Swift image-loading library. Its implementation should make capability selection explicit, keep shared mutable state concurrency-safe, and remain straightforward to test and use from Swift.
 
 ## Decision
 

@@ -1,5 +1,5 @@
 import Foundation
-import MediaLoader
+import Vulp
 import Testing
 
 @Test func imageProcessorChainRunsProcessorsInOrder() async throws {
