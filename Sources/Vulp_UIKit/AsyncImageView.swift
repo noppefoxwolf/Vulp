@@ -341,8 +341,15 @@ private struct ImageLoadingOperation {
 @MainActor
 private final class ImageSequencePlayback {
     private weak var imageView: UIImageView?
+    private var updateLink: UIUpdateLink?
+    private var frameLoadingTask: Task<Void, Never>?
+    private var loadFrame: (@MainActor @Sendable (Int) async throws -> UIImage)?
+    private var cancelFrameLoading: (@Sendable () async -> Void)?
+    private var frameIndices: [Int] = []
     private var frameInterval: TimeInterval = ImageSequenceFrameRate.fps10.frameDuration
-    private var playbackTask: Task<Void, Never>?
+    private var startTimestamp: CFTimeInterval?
+    private var displayedPosition = 0
+    private var desiredPosition = 0
 
     func play<Loader: MediaImageLoading>(
         firstFrame: UIImage,
@@ -354,36 +361,85 @@ private final class ImageSequencePlayback {
         stop()
         self.imageView = imageView
         self.frameInterval = frameInterval
+        self.frameIndices = frameIndices
+        self.displayedPosition = 0
+        self.desiredPosition = 0
+        self.loadFrame = { index in try await frameLoader.frame(at: index) }
+        self.cancelFrameLoading = { await frameLoader.cancel() }
         imageView.image = firstFrame
 
-        guard Set(frameIndices).count > 1 else { return }
-        let duration = self.frameInterval
-        playbackTask = Task { @MainActor [weak self] in
-            do {
-                while !Task.isCancelled {
-                    for index in frameIndices.dropFirst() {
-                        try await Task.sleep(for: .seconds(duration))
-                        let frame = try await frameLoader.frame(at: index)
-                        try Task.checkCancellation()
-                        guard self != nil else {
-                            await frameLoader.cancel()
-                            return
-                        }
-                        self?.imageView?.image = frame
-                    }
-                    try await Task.sleep(for: .seconds(duration))
-                    self?.imageView?.image = firstFrame
-                }
-            } catch {
-                await frameLoader.cancel()
+        guard Set(frameIndices).count > 1 else {
+            let cancelFrameLoading = self.cancelFrameLoading
+            self.cancelFrameLoading = nil
+            loadFrame = nil
+            self.frameIndices = []
+            if let cancelFrameLoading {
+                Task { await cancelFrameLoading() }
             }
+            return
         }
+
+        let updateLink = UIUpdateLink(view: imageView) { [weak self] _, updateInfo in
+            self?.updateLinkDidFire(updateInfo)
+        }
+        updateLink.requiresContinuousUpdates = true
+        updateLink.preferredFrameRateRange = CAFrameRateRange(
+            minimum: 1,
+            maximum: Float(1 / frameInterval),
+            preferred: Float(1 / frameInterval)
+        )
+        updateLink.isEnabled = true
+        self.updateLink = updateLink
     }
 
     func stop() {
-        playbackTask?.cancel()
-        playbackTask = nil
+        updateLink?.isEnabled = false
+        updateLink = nil
+        frameLoadingTask?.cancel()
+        frameLoadingTask = nil
+        let cancelFrameLoading = self.cancelFrameLoading
+        self.cancelFrameLoading = nil
+        loadFrame = nil
+        frameIndices = []
+        startTimestamp = nil
         imageView = nil
+        if let cancelFrameLoading {
+            Task { await cancelFrameLoading() }
+        }
+    }
+
+    private func updateLinkDidFire(_ updateInfo: UIUpdateInfo) {
+        guard !frameIndices.isEmpty else { return }
+        guard let startTimestamp else {
+            self.startTimestamp = updateInfo.modelTime
+            return
+        }
+
+        let elapsed = max(0, updateInfo.modelTime - startTimestamp)
+        let position = Int(elapsed / frameInterval) % frameIndices.count
+        desiredPosition = position
+        guard position != displayedPosition,
+              frameLoadingTask == nil,
+              let loadFrame
+        else {
+            return
+        }
+
+        let index = frameIndices[position]
+        frameLoadingTask = Task { @MainActor [weak self] in
+            defer { self?.frameLoadingTask = nil }
+            do {
+                let image = try await loadFrame(index)
+                try Task.checkCancellation()
+                guard let self, self.desiredPosition == position else { return }
+                self.imageView?.image = image
+                self.displayedPosition = position
+            } catch is CancellationError {
+                return
+            } catch {
+                self?.stop()
+            }
+        }
     }
 }
 #endif

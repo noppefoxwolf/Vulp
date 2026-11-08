@@ -24,3 +24,4 @@ This directory stores decisions that affect Vulp's architecture and public API.
 - [0011. Prefer extensions on standard APIs for reusable implementations](0011-prefer-standard-api-extensions.md)
 - [0012. Decode media sources through composed decoders](0012-media-source-decoding.md)
 - [0013. Pass view scale into image requests](0013-pass-view-scale-into-image-requests.md)
+- [0014. Use UIUpdateLink for UIKit sequence playback](0014-uiupdate-link-for-uikit-sequence-playback.md)

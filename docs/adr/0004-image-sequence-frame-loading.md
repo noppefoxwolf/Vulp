@@ -25,6 +25,8 @@ Animated image playback needs a stable source download and independently cacheab
 - Playback prefetch and memory bounds are defined by [ADR 0006](0006-bounded-sequence-prefetch.md), which extends this decision with incremental frame loading.
 - Frame selection is supported by decoders that opt into `ImageSequenceDeserializer`; ordinary `ImageDeserializer` implementations remain usable for static images.
 
+> The UIKit playback driver in this record is superseded by [ADR 0014](0014-uiupdate-link-for-uikit-sequence-playback.md). The remaining decisions stay in effect.
+
 ## Alternatives considered
 
 - Recreate a normal image view request for each tick: rejected because rapid request identity changes can cancel work and repeatedly show placeholders.

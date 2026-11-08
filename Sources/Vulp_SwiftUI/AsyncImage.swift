@@ -1,4 +1,5 @@
 import SwiftUI
+import Observation
 @_exported import Vulp
 
 /// Loads and displays an image, playing it when the loaded source contains multiple frames.
@@ -16,6 +17,7 @@ public struct AsyncImage<Loader: MediaImageLoading, Placeholder: View>: View {
     private let makeImageOperation: (@MainActor @Sendable (CGSize?, CGFloat) -> ImageLoadingOperation?)?
 
     @State private var image: MediaImage?
+    @State private var sequencePlayback: SequencePlaybackState<Loader>?
 
     /// Loads a single image request.
     public init<Request: MediaImageRequestProtocol>(
@@ -147,7 +149,14 @@ public struct AsyncImage<Loader: MediaImageLoading, Placeholder: View>: View {
         sequenceOperation: (@MainActor @Sendable () async throws -> (ImageSequenceFrameLoader<Loader>, ImageSequencePlaybackPlan))? = nil
     ) -> some View {
         Group {
-            if let image {
+            if let sequencePlayback {
+                SequencePlaybackView(
+                    frameLoader: sequencePlayback.frameLoader,
+                    playbackPlan: sequencePlayback.playbackPlan,
+                    firstImage: sequencePlayback.firstImage,
+                    onFailure: onFailure
+                )
+            } else if let image {
                 PlatformImage(image: image)
             } else {
                 placeholder
@@ -173,6 +182,7 @@ public struct AsyncImage<Loader: MediaImageLoading, Placeholder: View>: View {
     @MainActor
     private func load(operation: ImageLoadingOperation) async {
         image = nil
+        sequencePlayback = nil
         do {
             let loadedImage = try await operation.load()
             try Task.checkCancellation()
@@ -187,6 +197,7 @@ public struct AsyncImage<Loader: MediaImageLoading, Placeholder: View>: View {
     @MainActor
     private func load() async {
         image = nil
+        sequencePlayback = nil
         do {
             if let loadSequence {
                 try await playSequence(using: loadSequence)
@@ -215,22 +226,17 @@ public struct AsyncImage<Loader: MediaImageLoading, Placeholder: View>: View {
                 }
                 let firstImage = try await frameLoader.frame(at: firstIndex)
                 try Task.checkCancellation()
-                image = firstImage
                 guard Set(playbackPlan.frameIndices).count > 1 else {
+                    image = firstImage
                     await frameLoader.cancel()
                     return
                 }
-
-                while !Task.isCancelled {
-                    for index in playbackPlan.frameIndices.dropFirst() {
-                        try Task.checkCancellation()
-                        try await Task.sleep(for: .seconds(playbackPlan.frameRate.frameDuration))
-                        image = try await frameLoader.frame(at: index)
-                    }
-                    try await Task.sleep(for: .seconds(playbackPlan.frameRate.frameDuration))
-                    image = firstImage
-                }
-                await frameLoader.cancel()
+                image = nil
+                sequencePlayback = SequencePlaybackState(
+                    frameLoader: frameLoader,
+                    playbackPlan: playbackPlan,
+                    firstImage: firstImage
+                )
             } catch {
                 await frameLoader.cancel()
                 throw error
@@ -238,6 +244,116 @@ public struct AsyncImage<Loader: MediaImageLoading, Placeholder: View>: View {
         } onCancel: {
             Task { await frameLoader.cancel() }
         }
+    }
+}
+
+private struct SequencePlaybackState<Loader: MediaImageLoading> {
+    let frameLoader: ImageSequenceFrameLoader<Loader>
+    let playbackPlan: ImageSequencePlaybackPlan
+    let firstImage: MediaImage
+}
+
+private struct SequencePlaybackView<Loader: MediaImageLoading>: View {
+    @State private var model: SequencePlaybackModel<Loader>
+
+    init(
+        frameLoader: ImageSequenceFrameLoader<Loader>,
+        playbackPlan: ImageSequencePlaybackPlan,
+        firstImage: MediaImage,
+        onFailure: (@MainActor @Sendable (any Error) -> Void)?
+    ) {
+        _model = State(
+            initialValue: SequencePlaybackModel(
+                frameLoader: frameLoader,
+                playbackPlan: playbackPlan,
+                firstImage: firstImage,
+                onFailure: onFailure
+            )
+        )
+    }
+
+    var body: some View {
+        TimelineView(.animation(minimumInterval: model.playbackPlan.frameRate.frameDuration)) { timeline in
+            let position = model.position(at: timeline.date)
+            PlatformImage(image: model.image)
+                .onChange(of: position, initial: true) { _, position in
+                    model.requestFrame(at: position)
+                }
+        }
+        .onDisappear {
+            model.stop()
+        }
+    }
+}
+
+@MainActor
+@Observable
+private final class SequencePlaybackModel<Loader: MediaImageLoading> {
+    let playbackPlan: ImageSequencePlaybackPlan
+    var image: MediaImage
+
+    @ObservationIgnored private let frameLoader: ImageSequenceFrameLoader<Loader>
+    @ObservationIgnored private let startDate = Date.now
+    @ObservationIgnored private let onFailure: (@MainActor @Sendable (any Error) -> Void)?
+    @ObservationIgnored private var desiredPosition = 0
+    @ObservationIgnored private var displayedPosition = 0
+    @ObservationIgnored private var frameLoadingTask: Task<Void, Never>?
+    @ObservationIgnored private var isActive = true
+
+    init(
+        frameLoader: ImageSequenceFrameLoader<Loader>,
+        playbackPlan: ImageSequencePlaybackPlan,
+        firstImage: MediaImage,
+        onFailure: (@MainActor @Sendable (any Error) -> Void)?
+    ) {
+        self.frameLoader = frameLoader
+        self.playbackPlan = playbackPlan
+        self.image = firstImage
+        self.onFailure = onFailure
+    }
+
+    func position(at date: Date) -> Int {
+        let elapsed = max(0, date.timeIntervalSince(startDate))
+        let framePosition = Int(elapsed / playbackPlan.frameRate.frameDuration)
+        return framePosition % playbackPlan.frameIndices.count
+    }
+
+    func requestFrame(at position: Int) {
+        guard isActive else { return }
+        desiredPosition = position
+        guard position != displayedPosition, frameLoadingTask == nil else { return }
+
+        let frameIndex = playbackPlan.frameIndices[position]
+        frameLoadingTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            defer {
+                self.frameLoadingTask = nil
+                if self.isActive, self.desiredPosition != self.displayedPosition {
+                    self.requestFrame(at: self.desiredPosition)
+                }
+            }
+
+            do {
+                let frame = try await self.frameLoader.frame(at: frameIndex)
+                try Task.checkCancellation()
+                guard self.isActive, self.desiredPosition == position else { return }
+                self.image = frame
+                self.displayedPosition = position
+            } catch is CancellationError {
+                return
+            } catch {
+                self.onFailure?(error)
+                self.stop()
+            }
+        }
+    }
+
+    func stop() {
+        guard isActive else { return }
+        isActive = false
+        frameLoadingTask?.cancel()
+        frameLoadingTask = nil
+        Task { await frameLoader.cancel() }
     }
 }
 
