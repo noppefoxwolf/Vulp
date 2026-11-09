@@ -19,8 +19,8 @@ import Testing
     let first = try await loader.load(request)
     let second = try await loader.load(request)
 
-    #expect(first.pixelWidth == 5)
-    #expect(first.pixelHeight == 5)
+    #expect(first.width == 5)
+    #expect(first.height == 5)
     #expect(second === first)
 }
 

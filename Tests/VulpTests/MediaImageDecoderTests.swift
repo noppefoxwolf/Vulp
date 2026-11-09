@@ -76,7 +76,7 @@ import Testing
     let image = try await loader.load(request)
     let downloadCount = await downloader.callCount
 
-    #expect(image.pixelWidth == 1)
+    #expect(image.width == 1)
     #expect(downloadCount == 1)
 }
 

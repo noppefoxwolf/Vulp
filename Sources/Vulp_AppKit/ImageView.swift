@@ -13,10 +13,16 @@ public enum ImageContentMode: String, Sendable {
 @MainActor
 public final class ImageView: NSView {
     private let imageView = NSImageView()
+    private var storedImage: CGImage?
 
-    public var image: NSImage? {
-        get { imageView.image }
-        set { imageView.image = newValue }
+    public var image: CGImage? {
+        get { storedImage }
+        set {
+            storedImage = newValue
+            imageView.image = newValue.map {
+                NSImage(cgImage: $0, size: CGSize(width: $0.width, height: $0.height))
+            }
+        }
     }
 
     public var contentMode: ImageContentMode = .aspectFit {

@@ -10,14 +10,12 @@ public typealias ImageLoadRequestError = MediaImageRequestError
 public struct MediaImageRequest: MediaImageRequestProtocol {
     public let assetHandle: any MediaAsset
     public let targetSize: CGSize
-    public let renderingMode: ImageRenderingMode
     public let decodingOptions: ImageDecodingOptions
     public let cacheIdentifier: String
 
     static func makeCacheIdentifier(
         asset: any MediaAsset,
         targetSize: CGSize,
-        renderingMode: ImageRenderingMode,
         decodingOptions: ImageDecodingOptions = .firstFrame
     ) -> String {
         let decodingKey: String
@@ -27,7 +25,7 @@ public struct MediaImageRequest: MediaImageRequestProtocol {
         case .frame(let index):
             decodingKey = "|frame:\(index)"
         }
-        return "\(asset.uniqueKey)|\(targetSize.width)x\(targetSize.height)|\(renderingMode.rawValue)\(decodingKey)"
+        return "\(asset.uniqueKey)|\(targetSize.width)x\(targetSize.height)\(decodingKey)"
     }
 
     /// Creates a request from a point size and display scale. Use the default scale of `1` for explicit pixel dimensions.
@@ -35,7 +33,6 @@ public struct MediaImageRequest: MediaImageRequestProtocol {
         assetHandle: any MediaAsset,
         targetSize: CGSize,
         scale: CGFloat = 1,
-        renderingMode: ImageRenderingMode = .original,
         decodingOptions: ImageDecodingOptions = .firstFrame,
         cacheIdentifier: String? = nil
     ) throws {
@@ -59,7 +56,6 @@ public struct MediaImageRequest: MediaImageRequestProtocol {
 
         self.assetHandle = assetHandle
         self.targetSize = bucketedPixelSize
-        self.renderingMode = renderingMode
         self.decodingOptions = decodingOptions
         if let cacheIdentifier {
             self.cacheIdentifier = cacheIdentifier
@@ -67,7 +63,6 @@ public struct MediaImageRequest: MediaImageRequestProtocol {
             self.cacheIdentifier = Self.makeCacheIdentifier(
                 asset: assetHandle,
                 targetSize: bucketedPixelSize,
-                renderingMode: renderingMode,
                 decodingOptions: decodingOptions
             )
         }

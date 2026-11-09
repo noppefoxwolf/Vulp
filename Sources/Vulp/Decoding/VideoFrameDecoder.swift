@@ -32,12 +32,6 @@ public extension VideoFrameDecoding {
 #if canImport(AVFoundation)
 import AVFoundation
 import UniformTypeIdentifiers
-#if canImport(UIKit)
-import UIKit
-#elseif canImport(AppKit)
-import AppKit
-#endif
-
 /// Generates a thumbnail from a video URL without first downloading the complete asset.
 public struct AVFoundationVideoFrameDecoder: VideoFrameDecoding {
     public init() {}
@@ -83,13 +77,7 @@ public struct AVFoundationVideoFrameDecoder: VideoFrameDecoding {
         let requestedTime = CMTime(seconds: time, preferredTimescale: 600)
         let (cgImage, _) = try await generator.image(at: requestedTime)
 
-        #if canImport(UIKit)
-        return UIImage(cgImage: cgImage)
-        #elseif canImport(AppKit)
-        return NSImage(cgImage: cgImage, size: CGSize(width: cgImage.width, height: cgImage.height))
-        #else
-        throw MediaImageDecodingError.unsupportedSource
-        #endif
+        return cgImage
     }
 }
 #endif

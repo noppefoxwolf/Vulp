@@ -3,12 +3,6 @@ import Foundation
 import Vulp
 import Testing
 
-#if canImport(UIKit)
-import UIKit
-#elseif canImport(AppKit)
-import AppKit
-#endif
-
 @Test func imageProcessorChainRunsProcessorsInOrder() async throws {
     let source = try await TestImageData.image()
     let asset = DataImageAsset(data: TestImageData.png, uniqueKey: "processor-chain")
@@ -33,8 +27,8 @@ import AppKit
 
     let result = try await ResizeImageProcessor().process(source, for: request)
 
-    #expect(result.pixelWidth == 1)
-    #expect(result.pixelHeight == 1)
+    #expect(result.width == 1)
+    #expect(result.height == 1)
 }
 
 @Test func resizeProcessorDownsamplesWithoutChangingSourceAspectRatio() async throws {
@@ -47,8 +41,8 @@ import AppKit
 
     let result = try await ResizeImageProcessor().process(source, for: request)
 
-    #expect(result.pixelWidth == 6)
-    #expect(result.pixelHeight == 2)
+    #expect(result.width == 6)
+    #expect(result.height == 2)
 }
 
 @Test func resizeProcessorReturnsSourceForZeroSizedRequest() async throws {
@@ -62,20 +56,6 @@ import AppKit
     let result = try await ResizeImageProcessor().process(source, for: request)
 
     #expect(result === source)
-}
-
-@Test func resizeProcessorAppliesTemplateRenderingMode() async throws {
-    let source = try await TestImageData.image()
-    let asset = DataImageAsset(data: TestImageData.png, uniqueKey: "template")
-    let request = try ImageLoadRequest(
-        assetHandle: asset,
-        targetSize: .zero,
-        renderingMode: .template
-    )
-
-    let result = try await ResizeImageProcessor().process(source, for: request)
-
-    #expect(result.isTemplateImage)
 }
 
 private actor ProcessorCallRecorder {
@@ -121,21 +101,10 @@ private func processorFixtureImage() throws -> MediaImage {
         shouldInterpolate: false,
         intent: .defaultIntent
     ))
-    #if canImport(UIKit)
-    return UIImage(cgImage: cgImage)
-    #elseif canImport(AppKit)
-    return NSImage(cgImage: cgImage, size: CGSize(width: 6, height: 2))
-    #endif
+    return cgImage
 }
 
 private func processorPixelColor(_ image: MediaImage, x: Int, y: Int) -> [UInt8] {
-    #if canImport(UIKit)
-    let cgImage = image.cgImage!
-    #elseif canImport(AppKit)
-    var rect = CGRect(origin: .zero, size: image.size)
-    let cgImage = image.cgImage(forProposedRect: &rect, context: nil, hints: nil)!
-    #endif
-
     var pixel = [UInt8](repeating: 0, count: 4)
     pixel.withUnsafeMutableBytes { bytes in
         guard let context = CGContext(
@@ -147,7 +116,7 @@ private func processorPixelColor(_ image: MediaImage, x: Int, y: Int) -> [UInt8]
             space: CGColorSpaceCreateDeviceRGB(),
             bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
         ) else { return }
-        context.draw(cgImage, in: CGRect(x: -x, y: -y, width: cgImage.width, height: cgImage.height))
+        context.draw(image, in: CGRect(x: -x, y: -y, width: image.width, height: image.height))
     }
     return Array(pixel.prefix(3))
 }

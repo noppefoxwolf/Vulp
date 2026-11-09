@@ -4,7 +4,7 @@ import UIKit
 
 struct VideoThumbnailDemoView: View {
     @State private var urlText = "https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/720/Big_Buck_Bunny_720_10s_1MB.mp4"
-    @State private var thumbnail: UIImage?
+    @State private var thumbnail: CGImage?
     @State private var errorMessage: String?
     @State private var isLoading = false
 
@@ -33,7 +33,7 @@ struct VideoThumbnailDemoView: View {
             Section("時刻 0 のフレーム") {
                 Group {
                     if let thumbnail {
-                        Image(uiImage: thumbnail)
+                        Image(decorative: thumbnail, scale: 1)
                             .resizable()
                             .scaledToFit()
                     } else if let errorMessage {

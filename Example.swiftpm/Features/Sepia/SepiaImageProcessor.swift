@@ -1,7 +1,6 @@
 import CoreImage
 import CoreImage.CIFilterBuiltins
 import VulpUI
-import UIKit
 
 struct SepiaImageProcessor: ImageProcessor {
     let intensity: Double
@@ -15,10 +14,8 @@ struct SepiaImageProcessor: ImageProcessor {
         _ image: MediaImage,
         for request: Request
     ) async throws -> MediaImage {
-        guard let source = image.cgImage else { return image }
-
         let filter = CIFilter.sepiaTone()
-        filter.inputImage = CIImage(cgImage: source)
+        filter.inputImage = CIImage(cgImage: image)
         filter.intensity = Float(intensity)
         guard let output = filter.outputImage else { return image }
 
@@ -27,10 +24,6 @@ struct SepiaImageProcessor: ImageProcessor {
             return image
         }
 
-        return UIImage(
-            cgImage: processed,
-            scale: image.scale,
-            orientation: image.imageOrientation
-        ).withRenderingMode(image.renderingMode)
+        return processed
     }
 }

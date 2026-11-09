@@ -566,11 +566,5 @@ private struct ImageLoadingOperation {
 }
 
 private func platformImage(_ image: MediaImage) -> Image {
-    #if canImport(UIKit)
-    Image(uiImage: image)
-    #elseif canImport(AppKit)
-    Image(nsImage: image)
-    #else
-    Image(systemName: "photo")
-    #endif
+    Image(decorative: image, scale: 1, orientation: .up)
 }

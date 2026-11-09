@@ -40,7 +40,7 @@ import UIKit
     view.image = image
 
     #expect(view.image === image)
-    #expect(view.subviews.count == 1)
+    #expect(view.subviews.isEmpty)
     #expect(view.contentMode == .scaleAspectFit)
 }
 #endif

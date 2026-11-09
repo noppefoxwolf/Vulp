@@ -74,8 +74,8 @@ private actor RecordingSequenceTransport: HTTPImageDataTransport {
         options: .frame(index: 1)
     )
 
-    #expect(firstFrame.pixelWidth == 16)
-    #expect(secondFrame.pixelWidth == 16)
+    #expect(firstFrame.width == 16)
+    #expect(secondFrame.width == 16)
     #expect(pixelColor(firstFrame) != pixelColor(secondFrame))
 }
 
@@ -93,8 +93,8 @@ func imageIODecoderReportsAndSelectsAPNGAndWebPFrames(filename: String) async th
     let firstFrame = try await deserializer.deserialize(data, options: .frame(index: 0))
     let secondFrame = try await deserializer.deserialize(data, options: .frame(index: 1))
 
-    #expect(firstFrame.pixelWidth == 16)
-    #expect(secondFrame.pixelWidth == 16)
+    #expect(firstFrame.width == 16)
+    #expect(secondFrame.width == 16)
     #expect(pixelColor(firstFrame) != pixelColor(secondFrame))
 }
 
@@ -205,13 +205,6 @@ func imageIODecoderReportsAndSelectsAPNGAndWebPFrames(filename: String) async th
 }
 
 private func pixelColor(_ image: MediaImage) -> [UInt8] {
-    #if canImport(UIKit)
-    let cgImage = image.cgImage!
-    #elseif canImport(AppKit)
-    var rect = CGRect(origin: .zero, size: image.size)
-    let cgImage = image.cgImage(forProposedRect: &rect, context: nil, hints: nil)!
-    #endif
-
     var pixel = [UInt8](repeating: 0, count: 4)
     pixel.withUnsafeMutableBytes { bytes in
         guard let context = CGContext(
@@ -223,7 +216,7 @@ private func pixelColor(_ image: MediaImage) -> [UInt8] {
             space: CGColorSpaceCreateDeviceRGB(),
             bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
         ) else { return }
-        context.draw(cgImage, in: CGRect(x: 0, y: 0, width: 1, height: 1))
+        context.draw(image, in: CGRect(x: 0, y: 0, width: 1, height: 1))
     }
     return Array(pixel.prefix(3))
 }
