@@ -10,6 +10,8 @@ public final class AsyncImageView: UIView {
     private var makeImageOperation: (@MainActor @Sendable (CGSize?, CGFloat) -> ImageLoadingOperation?)?
     private var restartImageLoadOnAttach: (@MainActor @Sendable () -> Void)?
     private var currentCacheIdentifier: String?
+    private var loadedCacheIdentifier: String?
+    private var loadedStaticSequenceIdentifier: String?
     private var imageLoadTask: Task<Void, Never>?
     private var imageFailureHandler: (@MainActor @Sendable (any Error) -> Void)?
 
@@ -29,6 +31,9 @@ public final class AsyncImageView: UIView {
             imageLoadTask = nil
             makeImageOperation = nil
             restartImageLoadOnAttach = nil
+            currentCacheIdentifier = nil
+            loadedCacheIdentifier = nil
+            loadedStaticSequenceIdentifier = nil
             sequencePlayback.stop()
             imageView.image = newValue
         }
@@ -50,6 +55,8 @@ public final class AsyncImageView: UIView {
         imageLoadTask = nil
         makeImageOperation = nil
         currentCacheIdentifier = nil
+        loadedCacheIdentifier = nil
+        loadedStaticSequenceIdentifier = nil
         let asset = RemoteMediaAsset(url: url)
         restartImageLoadOnAttach = { [weak self] in
             self?.startImageLoad(
@@ -105,6 +112,9 @@ public final class AsyncImageView: UIView {
         imageLoadTask = nil
         makeImageOperation = nil
         restartImageLoadOnAttach = nil
+        currentCacheIdentifier = nil
+        loadedCacheIdentifier = nil
+        loadedStaticSequenceIdentifier = nil
         let sequence = try await loader.loadSequence(from: asset)
         let playbackPlan = sequence.playbackPlan(levelOfIntegrity: levelOfIntegrity)
         let frameLoader = ImageSequenceFrameLoader(
@@ -149,6 +159,7 @@ public final class AsyncImageView: UIView {
         restartImageLoadOnAttach = nil
         sequencePlayback.stop()
         currentCacheIdentifier = nil
+        loadedStaticSequenceIdentifier = nil
         imageFailureHandler = onFailure
         makeImageOperation = { targetSize, scale in
             do {
@@ -246,13 +257,14 @@ public final class AsyncImageView: UIView {
         }
 
         guard let operation = makeImageOperation(targetSize, scale),
-              operation.cacheIdentifier != currentCacheIdentifier
-        else {
-            return
-        }
+              operation.cacheIdentifier != currentCacheIdentifier else { return }
 
         currentCacheIdentifier = operation.cacheIdentifier
         imageLoadTask?.cancel()
+        imageLoadTask = nil
+        if loadedCacheIdentifier == operation.cacheIdentifier, imageView.image != nil {
+            return
+        }
         imageView.image = nil
         imageLoadTask = Task { @MainActor [weak self] in
             do {
@@ -263,6 +275,7 @@ public final class AsyncImageView: UIView {
                 else {
                     return
                 }
+                self.loadedCacheIdentifier = operation.cacheIdentifier
                 self.imageView.image = image
             } catch is CancellationError {
                 return
@@ -293,6 +306,8 @@ public final class AsyncImageView: UIView {
             width: (bounds.width * scale).rounded(.up),
             height: (bounds.height * scale).rounded(.up)
         )
+        let sequenceIdentifier = "\(asset.uniqueKey)|\(targetSize.width)x\(targetSize.height)|integrity:\(levelOfIntegrity)|resize:\(resizeMode.rawValue)"
+        guard loadedStaticSequenceIdentifier != sequenceIdentifier || imageView.image == nil else { return }
         let loader = MediaImageLoader.default
         imageLoadTask = Task { @MainActor [weak self] in
             do {
@@ -319,6 +334,9 @@ public final class AsyncImageView: UIView {
                     await frameLoader.cancel()
                     return
                 }
+                self.loadedStaticSequenceIdentifier = Set(playbackPlan.frameIndices).count == 1
+                    ? sequenceIdentifier
+                    : nil
                 self.sequencePlayback.play(
                     firstFrame: firstFrame,
                     frameLoader: frameLoader,

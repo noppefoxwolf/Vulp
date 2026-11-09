@@ -120,6 +120,26 @@ private struct SequenceCancellationTrackingImageLoader: MediaImageSequenceLoadin
         return try await ImageIOImageDeserializer().deserialize(data)
     }
 }
+
+private struct SuccessfulLoadCountingImageLoader: MediaImageSequenceLoading {
+    let probe: ImageLoadLifecycleProbe
+
+    @concurrent
+    func loadSequence(from asset: any MediaAsset) async throws -> ImageSequence {
+        try await MediaImageLoader.default.loadSequence(from: asset)
+    }
+
+    @concurrent
+    func load<Request: MediaImageRequestProtocol>(_ request: Request) async throws -> MediaImage {
+        _ = await probe.didStartLoad()
+        let data = Data(base64Encoded:
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jZ1sAAAAASUVORK5CYII="
+        )!
+        let image = try await ImageIOImageDeserializer().deserialize(data)
+        await probe.didCompleteLoad()
+        return image
+    }
+}
 #endif
 
 @Test @MainActor func umbrellaProductExposesSwiftUIAsyncImage() throws {
@@ -272,6 +292,33 @@ import UIKit
     #expect(await probe.cancellationCount == 1)
 }
 
+@Test @MainActor func uiKitAsyncImageViewKeepsSuccessfulRequestWhenReattached() async throws {
+    let probe = ImageLoadLifecycleProbe()
+    let loader = SuccessfulLoadCountingImageLoader(probe: probe)
+    let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 120, height: 120))
+    let view = AsyncImageView(frame: CGRect(x: 0, y: 0, width: 80, height: 80))
+    window.addSubview(view)
+
+    view.loadImage(using: loader) { _, _ in
+        try ImageLoadRequest(
+            assetHandle: DataImageAsset(data: Data([0]), uniqueKey: "successful-request-reappear"),
+            targetSize: CGSize(width: 80, height: 80)
+        )
+    }
+    await probe.waitForCompletionCount(1)
+    try await Task.sleep(for: .milliseconds(20))
+    let loadedImage = try #require(view.image)
+
+    view.removeFromSuperview()
+    window.addSubview(view)
+    view.layoutIfNeeded()
+    try await Task.sleep(for: .milliseconds(100))
+
+    #expect(view.image === loadedImage)
+    #expect(await probe.loadCount == 1)
+    #expect(await probe.completionCount == 1)
+}
+
 @Test @MainActor func uiKitAsyncImageViewAcceptsPointSizeAndScaleRequestBuilder() {
     let view = AsyncImageView(frame: CGRect(x: 0, y: 0, width: 120, height: 80))
     let asset = DataImageAsset(data: Data([0]), uniqueKey: "sized-uikit-view")
@@ -308,5 +355,74 @@ import UIKit
     )
 
     #expect(view.image != nil)
+}
+
+@Test @MainActor func swiftUIImageDoesNotReloadSuccessfulRequestWhenReappearing() async throws {
+    let probe = ImageLoadLifecycleProbe()
+    let loader = SuccessfulLoadCountingImageLoader(probe: probe)
+    let request = try ImageLoadRequest(
+        assetHandle: DataImageAsset(data: Data([0]), uniqueKey: "swiftui-reappear-success"),
+        targetSize: CGSize(width: 16, height: 16)
+    )
+    let hostingController = UIHostingController(
+        rootView: VulpUI.AsyncImage(
+            request: request,
+            loader: loader,
+            content: { $0.resizable() }
+        ) {
+            ProgressView()
+        }
+    )
+    let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+    hostingController.view.frame = window.bounds
+    window.addSubview(hostingController.view)
+    hostingController.view.setNeedsLayout()
+    hostingController.view.layoutIfNeeded()
+
+    await probe.waitForCompletionCount(1)
+    hostingController.view.removeFromSuperview()
+    window.addSubview(hostingController.view)
+    hostingController.view.setNeedsLayout()
+    hostingController.view.layoutIfNeeded()
+    try await Task.sleep(for: .milliseconds(100))
+
+    #expect(await probe.loadCount == 1)
+    #expect(await probe.completionCount == 1)
+}
+
+@Test @MainActor func swiftUIImageDoesNotReloadSuccessfulStaticSequenceWhenReappearing() async throws {
+    let probe = ImageLoadLifecycleProbe()
+    let loader = SuccessfulLoadCountingImageLoader(probe: probe)
+    let asset = DataImageAsset(
+        data: Data(base64Encoded:
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jZ1sAAAAASUVORK5CYII="
+        )!,
+        uniqueKey: "swiftui-static-sequence-reappear"
+    )
+    let hostingController = UIHostingController(
+        rootView: VulpUI.AsyncImage(
+            asset: asset,
+            loader: loader,
+            targetSize: CGSize(width: 16, height: 16),
+            content: { $0.resizable() }
+        ) {
+            ProgressView()
+        }
+    )
+    let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+    hostingController.view.frame = window.bounds
+    window.addSubview(hostingController.view)
+    hostingController.view.setNeedsLayout()
+    hostingController.view.layoutIfNeeded()
+
+    await probe.waitForCompletionCount(1)
+    hostingController.view.removeFromSuperview()
+    window.addSubview(hostingController.view)
+    hostingController.view.setNeedsLayout()
+    hostingController.view.layoutIfNeeded()
+    try await Task.sleep(for: .milliseconds(100))
+
+    #expect(await probe.loadCount == 1)
+    #expect(await probe.completionCount == 1)
 }
 #endif
