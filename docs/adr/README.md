@@ -27,3 +27,5 @@ This directory stores decisions that affect Vulp's architecture and public API.
 - [0014. Use UIUpdateLink for UIKit sequence playback](0014-uiupdate-link-for-uikit-sequence-playback.md)
 - [0015. Preserve source aspect ratio when resizing](0015-preserve-source-aspect-ratio-when-resizing.md)
 - [0016. Keep image presentation modes in UI targets](0016-image-presentation-in-ui-targets.md)
+- [0017. Let decoders select supported media sources](0017-decoder-driven-source-selection.md)
+- [0018. Select sequence decoders from the runtime decoder list](0018-runtime-sequence-decoder-selection.md)

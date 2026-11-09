@@ -4,7 +4,7 @@ import Foundation
 public protocol MediaAsset: Sendable {
     var uniqueKey: String { get }
     var fallbackImage: MediaImage? { get }
-    /// A best-effort format hint. The loader checks URL extensions and can re-resolve conflicts.
+    /// A best-effort format hint available to custom decoders.
     var mediaTypeHint: MediaTypeHint? { get }
     /// A URL that a format-specific decoder can consume directly, without downloading the full source.
     var directURL: URL? { get }
