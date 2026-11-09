@@ -68,7 +68,11 @@ struct SizedImageDemoView: View {
                         )
                     },
                     content: { image in
-                        image.resizable().aspectRatio(contentMode: usesFill ? .fill : .fit)
+                        image
+                            .resizable()
+                            .aspectRatio(contentMode: usesFill ? .fill : .fit)
+                            .frame(width: viewSize, height: viewSize)
+                            .clipped()
                     }
                 ) {
                     ProgressView("画像を読み込み中…")
