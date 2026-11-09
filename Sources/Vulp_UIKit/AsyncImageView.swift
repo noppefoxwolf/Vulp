@@ -125,6 +125,7 @@ public final class AsyncImageView: UIView {
             firstFrame: firstFrame,
             frameLoader: frameLoader,
             frameIndices: playbackPlan.frameIndices,
+            isAnimated: playbackPlan.isAnimated,
             in: imageView,
             frameInterval: playbackPlan.frameRate.frameDuration
         )
