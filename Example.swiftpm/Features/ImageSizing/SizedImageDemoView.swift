@@ -11,7 +11,7 @@ private typealias SizedExampleLoader = DefaultMediaImageLoader<
 struct SizedImageDemoView: View {
     @Environment(\.displayScale) private var displayScale
     @State private var viewSize: CGFloat = 180
-    @State private var resizeMode: ImageResizeMode = .fit
+    @State private var usesFill = false
     @State private var loader: SizedExampleLoader
 
     private let dataCache: DiskImageDataCache
@@ -48,12 +48,12 @@ struct SizedImageDemoView: View {
                     .font(.body)
                     .foregroundStyle(.secondary)
 
-                Picker("リサイズ方法", selection: $resizeMode) {
-                    Text("Fit").tag(ImageResizeMode.fit)
-                    Text("Fill").tag(ImageResizeMode.fill)
+                Picker("表示方法", selection: $usesFill) {
+                    Text("Fit").tag(false)
+                    Text("Fill").tag(true)
                 }
                 .pickerStyle(.segmented)
-                .accessibilityLabel("リサイズ方法")
+                .accessibilityLabel("表示方法")
 
                 VulpUI.AsyncImage(
                     loader: loader,
@@ -64,12 +64,11 @@ struct SizedImageDemoView: View {
                             targetSize: CGSize(
                                 width: pointSize.width * scale,
                                 height: pointSize.height * scale
-                            ),
-                            resizeMode: resizeMode
+                            )
                         )
                     },
                     content: { image in
-                        image.resizable().scaledToFit()
+                        image.resizable().aspectRatio(contentMode: usesFill ? .fill : .fit)
                     }
                 ) {
                     ProgressView("画像を読み込み中…")
@@ -81,7 +80,7 @@ struct SizedImageDemoView: View {
 
                 VStack(alignment: .leading, spacing: 8) {
                     Text("表示サイズ: \(Int(viewSize)) pt")
-                    Text(resizeMode == .fit ? "Fit: 全体を表示" : "Fill: 枠を覆って中央をクロップ")
+                    Text(usesFill ? "Fill: 枠を覆って中央をクロップ" : "Fit: 全体を表示")
                     Text("要求ピクセル: \(Int(requestedPixelSize.width)) × \(Int(requestedPixelSize.height))")
                     Text("要求サイズ段階: \(Int(processedPixelSize.width)) × \(Int(processedPixelSize.height)) px")
                         .fontWeight(.semibold)

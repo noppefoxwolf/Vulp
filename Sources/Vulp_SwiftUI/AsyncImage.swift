@@ -51,12 +51,11 @@ public struct AsyncImage<Loader: MediaImageLoading, Content: View, Placeholder: 
         targetSize: CGSize,
         levelOfIntegrity: Double = 1,
         prefetchCount: Int = 3,
-        resizeMode: ImageResizeMode = .fit,
         onFailure: (@MainActor @Sendable (any Error) -> Void)? = nil,
         @ViewBuilder content: @escaping (Image) -> Content,
         @ViewBuilder placeholder: () -> Placeholder
     ) where Loader: MediaImageSequenceLoading {
-        self.taskIdentifier = "\(asset.uniqueKey)|\(targetSize.width)x\(targetSize.height)|integrity:\(levelOfIntegrity)|resize:\(resizeMode.rawValue)"
+        self.taskIdentifier = "\(asset.uniqueKey)|\(targetSize.width)x\(targetSize.height)|integrity:\(levelOfIntegrity)"
         self.levelOfIntegrity = levelOfIntegrity
         self.sizingMode = .explicitPixels
         self.makeImageOperation = nil
@@ -71,7 +70,6 @@ public struct AsyncImage<Loader: MediaImageLoading, Content: View, Placeholder: 
                     sequence: sequence,
                     using: loader,
                     targetSize: targetSize,
-                    resizeMode: resizeMode,
                     prefetchCount: prefetchCount,
                     playbackFrameIndices: playbackPlan.frameIndices
                 ),
@@ -299,7 +297,6 @@ public extension AsyncImage where Content == Image {
         targetSize: CGSize,
         levelOfIntegrity: Double = 1,
         prefetchCount: Int = 3,
-        resizeMode: ImageResizeMode = .fit,
         onFailure: (@MainActor @Sendable (any Error) -> Void)? = nil,
         @ViewBuilder placeholder: () -> Placeholder
     ) where Loader: MediaImageSequenceLoading {
@@ -309,7 +306,6 @@ public extension AsyncImage where Content == Image {
             targetSize: targetSize,
             levelOfIntegrity: levelOfIntegrity,
             prefetchCount: prefetchCount,
-            resizeMode: resizeMode,
             onFailure: onFailure,
             content: { $0 },
             placeholder: placeholder
@@ -458,14 +454,13 @@ public extension AsyncImage where Loader == DefaultMediaImageLoader<
         url: URL,
         levelOfIntegrity: Double = 1,
         prefetchCount: Int = 3,
-        resizeMode: ImageResizeMode = .fit,
         onFailure: (@MainActor @Sendable (any Error) -> Void)? = nil,
         @ViewBuilder content: @escaping (Image) -> Content,
         @ViewBuilder placeholder: () -> Placeholder
     ) {
         let asset = RemoteMediaAsset(url: url)
         let loader = MediaImageLoader.default
-        self.taskIdentifier = "\(asset.uniqueKey)|resize:\(resizeMode.rawValue)"
+        self.taskIdentifier = asset.uniqueKey
         self.levelOfIntegrity = levelOfIntegrity
         self.sizingMode = .viewBounds
         self.makeImageOperation = nil
@@ -486,7 +481,6 @@ public extension AsyncImage where Loader == DefaultMediaImageLoader<
                         sequence: sequence,
                         using: loader,
                         targetSize: pixelSize,
-                        resizeMode: resizeMode,
                         prefetchCount: prefetchCount,
                         playbackFrameIndices: playbackPlan.frameIndices
                     ),
@@ -509,7 +503,6 @@ public extension AsyncImage where Loader == DefaultMediaImageLoader<
         url: URL,
         levelOfIntegrity: Double = 1,
         prefetchCount: Int = 3,
-        resizeMode: ImageResizeMode = .fit,
         onFailure: (@MainActor @Sendable (any Error) -> Void)? = nil,
         @ViewBuilder placeholder: () -> Placeholder
     ) {
@@ -517,7 +510,6 @@ public extension AsyncImage where Loader == DefaultMediaImageLoader<
             url: url,
             levelOfIntegrity: levelOfIntegrity,
             prefetchCount: prefetchCount,
-            resizeMode: resizeMode,
             onFailure: onFailure,
             content: { $0 },
             placeholder: placeholder
@@ -535,14 +527,12 @@ public extension AsyncImage where Loader == DefaultMediaImageLoader<
         url: URL,
         levelOfIntegrity: Double = 1,
         prefetchCount: Int = 3,
-        resizeMode: ImageResizeMode = .fit,
         onFailure: (@MainActor @Sendable (any Error) -> Void)? = nil
     ) {
         self.init(
             url: url,
             levelOfIntegrity: levelOfIntegrity,
             prefetchCount: prefetchCount,
-            resizeMode: resizeMode,
             onFailure: onFailure,
             content: { $0 },
             placeholder: { ProgressView() }

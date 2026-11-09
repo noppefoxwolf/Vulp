@@ -25,27 +25,16 @@ public struct ResizeImageProcessor: ImageProcessor {
             return applying(renderingMode, to: image)
         }
 
-        let scale: CGFloat
-        let outputWidth: Int
-        let outputHeight: Int
-        switch request.resizeMode {
-        case .fit:
-            // Keep the whole source image inside the requested bounding box.
-            scale = min(
+        // Downsample into the requested bounds without changing the source aspect ratio.
+        let scale = min(
+            1,
+            min(
                 CGFloat(width) / CGFloat(source.width),
                 CGFloat(height) / CGFloat(source.height)
             )
-            outputWidth = min(width, max(1, Int((CGFloat(source.width) * scale).rounded())))
-            outputHeight = min(height, max(1, Int((CGFloat(source.height) * scale).rounded())))
-        case .fill:
-            // Cover the requested box, then let the bitmap bounds crop overflow.
-            scale = max(
-                CGFloat(width) / CGFloat(source.width),
-                CGFloat(height) / CGFloat(source.height)
-            )
-            outputWidth = width
-            outputHeight = height
-        }
+        )
+        let outputWidth = min(width, max(1, Int((CGFloat(source.width) * scale).rounded())))
+        let outputHeight = min(height, max(1, Int((CGFloat(source.height) * scale).rounded())))
 
         // Bitmap output requires an RGB space compatible with premultiplied alpha.
         let colorSpace = source.colorSpace?.model == .rgb
@@ -65,18 +54,7 @@ public struct ResizeImageProcessor: ImageProcessor {
         context.interpolationQuality = .high
         let scaledWidth = CGFloat(source.width) * scale
         let scaledHeight = CGFloat(source.height) * scale
-        let drawRect: CGRect
-        switch request.resizeMode {
-        case .fit:
-            drawRect = CGRect(x: 0, y: 0, width: outputWidth, height: outputHeight)
-        case .fill:
-            drawRect = CGRect(
-                x: (CGFloat(width) - scaledWidth) / 2,
-                y: (CGFloat(height) - scaledHeight) / 2,
-                width: scaledWidth,
-                height: scaledHeight
-            )
-        }
+        let drawRect = CGRect(x: 0, y: 0, width: scaledWidth, height: scaledHeight)
         context.draw(source, in: drawRect)
         guard let resized = context.makeImage() else { return image }
 
