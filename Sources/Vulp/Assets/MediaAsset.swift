@@ -4,8 +4,6 @@ import Foundation
 public protocol MediaAsset: Sendable {
     var uniqueKey: String { get }
     var fallbackImage: MediaImage? { get }
-    /// A best-effort format hint available to custom decoders.
-    var mediaTypeHint: MediaTypeHint? { get }
     /// A URL that a format-specific decoder can consume directly, without downloading the full source.
     var directURL: URL? { get }
     @concurrent
@@ -16,7 +14,6 @@ public typealias ImageAssetHandle = MediaAsset
 
 public extension MediaAsset {
     var fallbackImage: MediaImage? { nil }
-    var mediaTypeHint: MediaTypeHint? { nil }
     var directURL: URL? { nil }
 
     @concurrent
@@ -30,18 +27,15 @@ public struct RemoteMediaAsset: MediaAsset {
     public let url: URL
     public let uniqueKey: String
     public let fallbackImage: MediaImage?
-    public let mediaTypeHint: MediaTypeHint?
 
     public init(
         url: URL,
         uniqueKey: String? = nil,
-        fallbackImage: MediaImage? = nil,
-        mediaTypeHint: MediaTypeHint? = nil
+        fallbackImage: MediaImage? = nil
     ) {
         self.url = url
         self.uniqueKey = uniqueKey ?? url.absoluteString
         self.fallbackImage = fallbackImage
-        self.mediaTypeHint = mediaTypeHint
     }
 
     public var directURL: URL? { url }
@@ -57,20 +51,17 @@ public struct FileMediaAsset: MediaAsset {
     public let url: URL
     public let uniqueKey: String
     public let fallbackImage: MediaImage?
-    public let mediaTypeHint: MediaTypeHint?
 
     public var directURL: URL? { url }
 
     public init(
         url: URL,
         uniqueKey: String? = nil,
-        fallbackImage: MediaImage? = nil,
-        mediaTypeHint: MediaTypeHint? = nil
+        fallbackImage: MediaImage? = nil
     ) {
         self.url = url
         self.uniqueKey = uniqueKey ?? url.standardizedFileURL.absoluteString
         self.fallbackImage = fallbackImage
-        self.mediaTypeHint = mediaTypeHint
     }
 
     @concurrent
@@ -84,8 +75,6 @@ public struct DataMediaAsset: MediaAsset {
     public let data: Data
     public let uniqueKey: String
     public let fallbackImage: MediaImage?
-    public let mediaTypeHint: MediaTypeHint? = .image
-
     /// Creates an asset and derives a stable cache key from its encoded data.
     @concurrent
     public init(data: Data, fallbackImage: MediaImage? = nil) async {

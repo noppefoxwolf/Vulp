@@ -97,7 +97,7 @@ struct VideoThumbnailDemoView: View {
 
         do {
             let request = try MediaImageRequest(
-                assetHandle: RemoteMediaAsset(url: url, mediaTypeHint: .video),
+                assetHandle: RemoteMediaAsset(url: url),
                 targetSize: CGSize(width: 640, height: 360)
             )
             thumbnail = try await MediaImageLoader.default.load(request)

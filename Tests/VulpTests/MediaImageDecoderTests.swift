@@ -40,25 +40,6 @@ import Testing
     #expect(downloadCount == 0)
 }
 
-@Test func mediaImageLoaderLetsDecoderCapabilityOverrideMediaTypeHint() async throws {
-    let videoDecoder = CountingVideoDecoder()
-    let loader = DefaultMediaImageLoader(
-        downloader: CountingDownloader(),
-        decoders: [videoDecoder],
-        processor: ResizeImageProcessor(),
-        cache: InMemoryImageCache()
-    )
-    let asset = RemoteMediaAsset(
-        url: URL(string: "https://example.com/clip.mp4")!,
-        mediaTypeHint: .image
-    )
-    let request = try MediaImageRequest(assetHandle: asset, targetSize: .zero)
-
-    _ = try await loader.load(request)
-
-    #expect(await videoDecoder.urls == [asset.url])
-}
-
 @Test func mediaImageLoaderFallsBackToImageDataWhenDirectURLDecoderDeclinesSource() async throws {
     let downloader = CountingDownloader()
     let loader = DefaultMediaImageLoader(
