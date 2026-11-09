@@ -7,6 +7,7 @@ import UIKit
 public final class AsyncImageView: UIView {
     private let imageLayer = ImageDisplayLayer()
     private let sequencePlayback = ImageSequencePlayback()
+    private var displayedImage: UIImage?
     private var makeImageOperation: (@MainActor @Sendable (CGSize?, CGFloat) -> ImageLoadingOperation?)?
     private var restartImageLoadOnAttach: (@MainActor @Sendable () -> Void)?
     private var currentCacheIdentifier: String?
@@ -27,7 +28,7 @@ public final class AsyncImageView: UIView {
     }
 
     public var image: UIImage? {
-        get { imageLayer.image }
+        get { displayedImage }
         set {
             imageLoadTask?.cancel()
             imageLoadTask = nil
@@ -260,7 +261,8 @@ public final class AsyncImageView: UIView {
     }
 
     fileprivate func setDisplayedImage(_ image: UIImage?) {
-        imageLayer.image = image
+        displayedImage = image
+        imageLayer.display(image?.cgImage, contentsScale: image?.scale ?? traitCollection.displayScale)
         invalidateIntrinsicContentSize()
     }
 
@@ -394,19 +396,13 @@ private struct ImageLoadingOperation {
 
 @MainActor
 private final class ImageDisplayLayer: CALayer {
-    var image: UIImage? {
-        get { storedImage }
-        set {
-            storedImage = newValue
-            CATransaction.begin()
-            CATransaction.setDisableActions(true)
-            contents = newValue?.cgImage
-            contentsScale = newValue?.scale ?? 1
-            CATransaction.commit()
-        }
+    func display(_ cgImage: CGImage?, contentsScale: CGFloat) {
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        contents = cgImage
+        self.contentsScale = contentsScale
+        CATransaction.commit()
     }
-
-    private var storedImage: UIImage?
 }
 
 @MainActor

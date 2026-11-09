@@ -9,8 +9,9 @@ The UIKit integration used a `UIImageView` subview to present images. Assigning 
 
 ## Decision
 
-- Present decoded images through a `CALayer` sublayer using the image's `CGImage` as layer contents.
-- Set the contents scale from the `UIImage` scale and map UIKit `contentMode` values to `contentsGravity`.
+- Present decoded images through a `CALayer` sublayer, passing its `CGImage` and contents scale separately to the layer.
+- Keep the `UIImage` at the `AsyncImageView` API boundary for point sizing and compatibility; the display layer does not store or accept a `UIImage`.
+- Map UIKit `contentMode` values to `contentsGravity`.
 - Keep image sizing in `AsyncImageView`: `.viewBounds` has no intrinsic content size, while `.explicitPixels` reports the displayed image's point size. Invalidate intrinsic content size when the image or sizing mode changes.
 - Update the same layer for sequence playback frames.
 
