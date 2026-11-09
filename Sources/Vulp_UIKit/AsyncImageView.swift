@@ -7,10 +7,12 @@ import UIKit
 public final class AsyncImageView: UIView {
     private let imageLayer = ImageDisplayLayer()
     private let sequencePlayback = ImageSequencePlayback()
-    private var displayedImage: UIImage?
+    private var displayedImage: CGImage?
+    private var displayedRenderingMode: ImageRenderingMode = .original
     private var makeImageOperation: (@MainActor @Sendable (CGSize?, CGFloat) -> ImageLoadingOperation?)?
     private var restartImageLoadOnAttach: (@MainActor @Sendable () -> Void)?
     private var currentCacheIdentifier: String?
+    private var currentRenderingMode: ImageRenderingMode = .original
     private var loadedCacheIdentifier: String?
     private var loadedStaticSequenceIdentifier: String?
     private var imageLoadTask: Task<Void, Never>?
@@ -27,7 +29,7 @@ public final class AsyncImageView: UIView {
         }
     }
 
-    public var image: UIImage? {
+    public var image: CGImage? {
         get { displayedImage }
         set {
             imageLoadTask?.cancel()
@@ -50,11 +52,11 @@ public final class AsyncImageView: UIView {
     }
 
     public override var intrinsicContentSize: CGSize {
-        // Bound-sized images are measured by Auto Layout; explicit images contribute their native point size.
+        // Bound-sized images are measured by Auto Layout; explicit images contribute pixel dimensions as points.
         guard sizingMode == .explicitPixels, let image else {
             return CGSize(width: UIView.noIntrinsicMetric, height: UIView.noIntrinsicMetric)
         }
-        return image.size
+        return CGSize(width: image.width, height: image.height)
     }
 
     /// Loads and plays an image source from a URL at this view's current pixel size.
@@ -174,6 +176,7 @@ public final class AsyncImageView: UIView {
                 let imageRequest = try request(targetSize, scale)
                 return ImageLoadingOperation(
                     cacheIdentifier: imageRequest.cacheIdentifier,
+                    renderingMode: imageRequest.renderingMode,
                     load: { try await loader.load(imageRequest) }
                 )
             } catch {
@@ -210,8 +213,13 @@ public final class AsyncImageView: UIView {
     public override func layoutSubviews() {
         super.layoutSubviews()
         imageLayer.frame = bounds
-        imageLayer.contentsGravity = contentsGravity(for: contentMode)
+        refreshDisplayedLayer()
         updateImageIfNeeded()
+    }
+
+    public override func tintColorDidChange() {
+        super.tintColorDidChange()
+        refreshDisplayedLayer()
     }
 
     public override func willMove(toSuperview newSuperview: UIView?) {
@@ -260,10 +268,25 @@ public final class AsyncImageView: UIView {
         }
     }
 
-    fileprivate func setDisplayedImage(_ image: UIImage?) {
+    fileprivate func setDisplayedImage(
+        _ image: CGImage?,
+        renderingMode: ImageRenderingMode = .original
+    ) {
         displayedImage = image
-        imageLayer.display(image?.cgImage, contentsScale: image?.scale ?? traitCollection.displayScale)
+        displayedRenderingMode = renderingMode
+        refreshDisplayedLayer()
         invalidateIntrinsicContentSize()
+    }
+
+    private func refreshDisplayedLayer() {
+        imageLayer.frame = bounds
+        imageLayer.display(
+            displayedImage,
+            contentsScale: 1,
+            contentsGravity: contentsGravity(for: contentMode),
+            renderingMode: displayedRenderingMode,
+            tintColor: tintColor
+        )
     }
 
     private func registerForDisplayScaleChanges() {
@@ -286,13 +309,21 @@ public final class AsyncImageView: UIView {
             scale = 1
         }
 
-        guard let operation = makeImageOperation(targetSize, scale),
-              operation.cacheIdentifier != currentCacheIdentifier else { return }
+        guard let operation = makeImageOperation(targetSize, scale) else { return }
+        let renderingModeChanged = currentRenderingMode != operation.renderingMode
+        currentRenderingMode = operation.renderingMode
+        guard operation.cacheIdentifier != currentCacheIdentifier else {
+            if renderingModeChanged, let displayedImage {
+                setDisplayedImage(displayedImage, renderingMode: operation.renderingMode)
+            }
+            return
+        }
 
         currentCacheIdentifier = operation.cacheIdentifier
         imageLoadTask?.cancel()
         imageLoadTask = nil
-        if loadedCacheIdentifier == operation.cacheIdentifier, image != nil {
+        if loadedCacheIdentifier == operation.cacheIdentifier, let displayedImage {
+            setDisplayedImage(displayedImage, renderingMode: operation.renderingMode)
             return
         }
         setDisplayedImage(nil)
@@ -306,7 +337,7 @@ public final class AsyncImageView: UIView {
                     return
                 }
                 self.loadedCacheIdentifier = operation.cacheIdentifier
-                self.setDisplayedImage(image)
+                self.setDisplayedImage(image, renderingMode: self.currentRenderingMode)
             } catch is CancellationError {
                 return
             } catch {
@@ -350,7 +381,7 @@ public final class AsyncImageView: UIView {
                     playbackFrameIndices: playbackPlan.frameIndices
                 )
                 guard let firstIndex = playbackPlan.frameIndices.first else { return }
-                let firstFrame: UIImage
+                let firstFrame: CGImage
                 do {
                     firstFrame = try await frameLoader.frame(at: firstIndex)
                 } catch {
@@ -391,16 +422,38 @@ public final class AsyncImageView: UIView {
 
 private struct ImageLoadingOperation {
     let cacheIdentifier: String
-    let load: @MainActor @Sendable () async throws -> UIImage
+    let renderingMode: ImageRenderingMode
+    let load: @MainActor @Sendable () async throws -> CGImage
 }
 
 @MainActor
 private final class ImageDisplayLayer: CALayer {
-    func display(_ cgImage: CGImage?, contentsScale: CGFloat) {
+    private let templateMask = CALayer()
+
+    func display(
+        _ cgImage: CGImage?,
+        contentsScale: CGFloat,
+        contentsGravity: CALayerContentsGravity,
+        renderingMode: ImageRenderingMode,
+        tintColor: UIColor
+    ) {
         CATransaction.begin()
         CATransaction.setDisableActions(true)
-        contents = cgImage
         self.contentsScale = contentsScale
+        self.contentsGravity = contentsGravity
+        if renderingMode == .template, let cgImage {
+            contents = nil
+            backgroundColor = tintColor.cgColor
+            templateMask.frame = bounds
+            templateMask.contents = cgImage
+            templateMask.contentsScale = contentsScale
+            templateMask.contentsGravity = contentsGravity
+            mask = templateMask
+        } else {
+            mask = nil
+            backgroundColor = nil
+            contents = cgImage
+        }
         CATransaction.commit()
     }
 }
@@ -410,7 +463,7 @@ private final class ImageSequencePlayback {
     private weak var view: AsyncImageView?
     private var updateLink: UIUpdateLink?
     private var frameLoadingTask: Task<Void, Never>?
-    private var loadFrame: (@MainActor @Sendable (Int) async throws -> UIImage)?
+    private var loadFrame: (@MainActor @Sendable (Int) async throws -> CGImage)?
     private var cancelFrameLoading: (@Sendable () async -> Void)?
     private var frameIndices: [Int] = []
     private var frameInterval: TimeInterval = ImageSequenceFrameRate.fps10.frameDuration
@@ -419,7 +472,7 @@ private final class ImageSequencePlayback {
     private var desiredPosition = 0
 
     func play<Loader: MediaImageLoading>(
-        firstFrame: UIImage,
+        firstFrame: CGImage,
         frameLoader: ImageSequenceFrameLoader<Loader>,
         frameIndices: [Int],
         isAnimated: Bool,

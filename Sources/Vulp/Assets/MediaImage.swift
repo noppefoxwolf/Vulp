@@ -1,31 +1,9 @@
-#if canImport(UIKit)
-import UIKit
+import CoreGraphics
 
-/// Platform image type used by Vulp.
-public typealias MediaImage = UIImage
+/// A decoded bitmap shared by Vulp's loading pipeline and its UI integrations.
+public typealias MediaImage = CGImage
 
-public extension UIImage {
-    var pixelWidth: Int { cgImage?.width ?? 0 }
-    var pixelHeight: Int { cgImage?.height ?? 0 }
-    var isTemplateImage: Bool { renderingMode == .alwaysTemplate }
+public extension CGImage {
+    var pixelWidth: Int { width }
+    var pixelHeight: Int { height }
 }
-#elseif canImport(AppKit)
-import AppKit
-
-/// Platform image type used by Vulp.
-public typealias MediaImage = NSImage
-
-public extension NSImage {
-    var isTemplateImage: Bool { isTemplate }
-
-    var pixelWidth: Int {
-        var rect = CGRect(origin: .zero, size: size)
-        return cgImage(forProposedRect: &rect, context: nil, hints: nil)?.width ?? 0
-    }
-
-    var pixelHeight: Int {
-        var rect = CGRect(origin: .zero, size: size)
-        return cgImage(forProposedRect: &rect, context: nil, hints: nil)?.height ?? 0
-    }
-}
-#endif

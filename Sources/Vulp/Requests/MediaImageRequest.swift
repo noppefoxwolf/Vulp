@@ -17,7 +17,6 @@ public struct MediaImageRequest: MediaImageRequestProtocol {
     static func makeCacheIdentifier(
         asset: any MediaAsset,
         targetSize: CGSize,
-        renderingMode: ImageRenderingMode,
         decodingOptions: ImageDecodingOptions = .firstFrame
     ) -> String {
         let decodingKey: String
@@ -27,7 +26,7 @@ public struct MediaImageRequest: MediaImageRequestProtocol {
         case .frame(let index):
             decodingKey = "|frame:\(index)"
         }
-        return "\(asset.uniqueKey)|\(targetSize.width)x\(targetSize.height)|\(renderingMode.rawValue)\(decodingKey)"
+        return "\(asset.uniqueKey)|\(targetSize.width)x\(targetSize.height)\(decodingKey)"
     }
 
     /// Creates a request from a point size and display scale. Use the default scale of `1` for explicit pixel dimensions.
@@ -67,7 +66,6 @@ public struct MediaImageRequest: MediaImageRequestProtocol {
             self.cacheIdentifier = Self.makeCacheIdentifier(
                 asset: assetHandle,
                 targetSize: bucketedPixelSize,
-                renderingMode: renderingMode,
                 decodingOptions: decodingOptions
             )
         }

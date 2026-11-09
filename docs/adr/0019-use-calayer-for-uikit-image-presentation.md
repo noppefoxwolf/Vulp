@@ -1,6 +1,6 @@
 # 0019. Present UIKit images with CALayer
 
-- Status: Accepted
+- Status: Superseded by [ADR 0020](0020-use-cgimage-as-media-image.md)
 - Date: 2026-11-09
 
 ## Context

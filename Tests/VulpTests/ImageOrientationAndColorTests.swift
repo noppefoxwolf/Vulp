@@ -39,5 +39,5 @@ func resizeConvertsNonRGBImages(cmyk: Bool) async throws {
     let result = try await ResizeImageProcessor().process(image, for: request)
     #expect(result.pixelWidth == 16)
     #expect(result.pixelHeight == 16)
-    #expect(result.isTemplateImage)
+    #expect(request.renderingMode == .template)
 }

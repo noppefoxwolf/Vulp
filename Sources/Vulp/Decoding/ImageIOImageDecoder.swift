@@ -1,12 +1,6 @@
 import Foundation
 import ImageIO
 
-#if canImport(UIKit)
-import UIKit
-#elseif canImport(AppKit)
-import AppKit
-#endif
-
 public struct ImageIOImageDecoder: MediaImageSequenceDecoding {
     public init() {}
 
@@ -78,13 +72,7 @@ public struct ImageIOImageDecoder: MediaImageSequenceDecoding {
             throw ImageDeserializationError.invalidData
         }
 
-        #if canImport(UIKit)
-        return UIImage(cgImage: cgImage)
-        #elseif canImport(AppKit)
-        return NSImage(cgImage: cgImage, size: CGSize(width: cgImage.width, height: cgImage.height))
-        #else
-        throw ImageDeserializationError.invalidData
-        #endif
+        return cgImage
     }
 
     @concurrent

@@ -12,6 +12,7 @@ public struct AsyncImage<Loader: MediaImageLoading, Content: View, Placeholder: 
     private let content: (Image) -> Content
     private let placeholder: Placeholder
     private let onFailure: (@MainActor @Sendable (any Error) -> Void)?
+    private let initialRenderingMode: ImageRenderingMode
 
     public let sizingMode: ImageViewSizingMode
 
@@ -34,6 +35,7 @@ public struct AsyncImage<Loader: MediaImageLoading, Content: View, Placeholder: 
         self.taskIdentifier = request.cacheIdentifier
         self.levelOfIntegrity = 1
         self.sizingMode = .explicitPixels
+        self.initialRenderingMode = request.renderingMode
         self.makeImageOperation = nil
         self.loadSequence = nil
         self.makeSizedSequence = nil
@@ -59,6 +61,7 @@ public struct AsyncImage<Loader: MediaImageLoading, Content: View, Placeholder: 
         self.taskIdentifier = "\(asset.uniqueKey)|\(targetSize.width)x\(targetSize.height)|integrity:\(levelOfIntegrity)"
         self.levelOfIntegrity = levelOfIntegrity
         self.sizingMode = .explicitPixels
+        self.initialRenderingMode = .original
         self.makeImageOperation = nil
         self.makeSizedSequence = nil
         self.content = content
@@ -93,6 +96,7 @@ public struct AsyncImage<Loader: MediaImageLoading, Content: View, Placeholder: 
         self.taskIdentifier = "sized-image"
         self.levelOfIntegrity = 1
         self.sizingMode = sizingMode
+        self.initialRenderingMode = .original
         self.loadSequence = nil
         self.makeSizedSequence = nil
         self.content = content
@@ -102,6 +106,7 @@ public struct AsyncImage<Loader: MediaImageLoading, Content: View, Placeholder: 
                 let imageRequest = try request(targetSize, scale)
                 return ImageLoadingOperation(
                     cacheIdentifier: imageRequest.cacheIdentifier,
+                    renderingMode: imageRequest.renderingMode,
                     load: { [loader, imageRequest] in
                         try await loader.load(imageRequest)
                     }
@@ -192,7 +197,7 @@ public struct AsyncImage<Loader: MediaImageLoading, Content: View, Placeholder: 
                     onFailure: onFailure
                 )
             } else if let image {
-                content(platformImage(image))
+                content(platformImage(image, renderingMode: operation?.renderingMode ?? initialRenderingMode))
             } else {
                 placeholder
             }
@@ -485,6 +490,7 @@ public extension AsyncImage where Loader == DefaultMediaImageLoader<
         self.taskIdentifier = asset.uniqueKey
         self.levelOfIntegrity = levelOfIntegrity
         self.sizingMode = .viewBounds
+        self.initialRenderingMode = .original
         self.makeImageOperation = nil
         self.loadSequence = nil
         self.loadImages = { [] }
@@ -562,15 +568,14 @@ public extension AsyncImage where Loader == DefaultMediaImageLoader<
 
 private struct ImageLoadingOperation {
     let cacheIdentifier: String
+    let renderingMode: ImageRenderingMode
     let load: @MainActor @Sendable () async throws -> MediaImage
 }
 
-private func platformImage(_ image: MediaImage) -> Image {
-    #if canImport(UIKit)
-    Image(uiImage: image)
-    #elseif canImport(AppKit)
-    Image(nsImage: image)
-    #else
-    Image(systemName: "photo")
-    #endif
+private func platformImage(
+    _ image: MediaImage,
+    renderingMode: ImageRenderingMode = .original
+) -> Image {
+    Image(decorative: image, scale: 1, orientation: .up)
+        .renderingMode(renderingMode == .template ? .template : .original)
 }

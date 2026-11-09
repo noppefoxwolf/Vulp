@@ -2,6 +2,8 @@
 
 Vulp is an image and video thumbnail loading library built with Swift Concurrency. It handles downloading, decoding, resizing, and caching, with integrations for SwiftUI, UIKit, and AppKit.
 
+The shared pipeline uses `CGImage` as `MediaImage`; platform image wrappers are created only where a UI framework needs them.
+
 ## Features
 
 - Load remote URLs, local files, and encoded `Data` through a common `MediaAsset` interface
@@ -62,7 +64,7 @@ struct RemotePhoto: View {
 
 `VulpUI.AsyncImage(url:)` sizes the request from its displayed bounds and environment display scale. To customize the image or placeholder, pass `content` and `placeholder` closures; the `content` closure receives a SwiftUI `Image`, so apply `.resizable()`, `.scaledToFit()`, or other image modifiers there. It accepts an optional failure callback and plays animated sources incrementally. For custom loaders or request options, use one of the request-based initializers.
 
-The processor downsamples images to the request's bucketed pixel size while preserving their aspect ratio. Choose presentation behavior in the UI: set `UIImageView.contentMode` / `AsyncImageView.contentMode` in UIKit, or use `.scaledToFit()` / `.scaledToFill()` in SwiftUI. Since presentation mode is not part of the request or cache key, the same bucketed image can be reused for either mode.
+The processor downsamples `CGImage` values to the request's bucketed pixel size while preserving their aspect ratio. Choose presentation behavior in the UI: set `AsyncImageView.contentMode` in UIKit, or use `.scaledToFit()` / `.scaledToFill()` in SwiftUI. Since presentation mode is not part of the request or cache key, the same bucketed image can be reused for either mode. UIKit and AppKit image wrappers are created only at their presentation boundaries.
 
 ## Performance-conscious loading
 
