@@ -65,7 +65,7 @@ public struct AsyncImage<Loader: MediaImageLoading, Content: View, Placeholder: 
         self.loadImages = { [] }
         self.loadSequence = { [loader, asset] in
             let sequence = try await loader.loadSequence(from: asset)
-            let playbackPlan = sequence.playbackPlan(levelOfIntegrity: levelOfIntegrity)
+            let playbackPlan = await sequence.playbackPlan(levelOfIntegrity: levelOfIntegrity)
             return (
                 ImageSequenceFrameLoader(
                     sequence: sequence,
@@ -274,7 +274,7 @@ public struct AsyncImage<Loader: MediaImageLoading, Content: View, Placeholder: 
                 }
                 let firstImage = try await frameLoader.frame(at: firstIndex)
                 try Task.checkCancellation()
-                guard Set(playbackPlan.frameIndices).count > 1 else {
+                guard playbackPlan.isAnimated else {
                     image = firstImage
                     loadedTaskIdentifier = taskIdentifier
                     await frameLoader.cancel()
@@ -497,7 +497,7 @@ public extension AsyncImage where Loader == DefaultMediaImageLoader<
             guard pixelSize.width > 0, pixelSize.height > 0 else { return nil }
             return {
                 let sequence = try await loader.loadSequence(from: asset)
-                let playbackPlan = sequence.playbackPlan(levelOfIntegrity: levelOfIntegrity)
+                let playbackPlan = await sequence.playbackPlan(levelOfIntegrity: levelOfIntegrity)
                 return (
                     ImageSequenceFrameLoader(
                         sequence: sequence,

@@ -25,6 +25,7 @@ public enum ImageSequenceFrameRate: Int, CaseIterable, Sendable {
 public struct ImageSequencePlaybackPlan: Sendable {
     public let frameRate: ImageSequenceFrameRate
     public let frameIndices: [Int]
+    public let isAnimated: Bool
 
     public init(frameDurations: [TimeInterval], levelOfIntegrity: Double) {
         func positions(_ elapsedDurations: [TimeInterval], at frameRate: ImageSequenceFrameRate) -> [Int] {
@@ -85,6 +86,7 @@ public struct ImageSequencePlaybackPlan: Sendable {
             elapsedDurations: elapsedDurations,
             frameRate: chosenRate
         )
+        self.isAnimated = Set(self.frameIndices).count > 1
     }
 }
 

@@ -110,7 +110,7 @@ public final class AsyncImageView: UIView {
         loadedCacheIdentifier = nil
         loadedStaticSequenceIdentifier = nil
         let sequence = try await loader.loadSequence(from: asset)
-        let playbackPlan = sequence.playbackPlan(levelOfIntegrity: levelOfIntegrity)
+        let playbackPlan = await sequence.playbackPlan(levelOfIntegrity: levelOfIntegrity)
         let frameLoader = ImageSequenceFrameLoader(
             sequence: sequence,
             using: loader,
@@ -304,7 +304,7 @@ public final class AsyncImageView: UIView {
         imageLoadTask = Task { @MainActor [weak self] in
             do {
                 let sequence = try await loader.loadSequence(from: asset)
-                let playbackPlan = sequence.playbackPlan(levelOfIntegrity: levelOfIntegrity)
+                let playbackPlan = await sequence.playbackPlan(levelOfIntegrity: levelOfIntegrity)
                 let frameLoader = ImageSequenceFrameLoader(
                     sequence: sequence,
                     using: loader,
@@ -325,13 +325,14 @@ public final class AsyncImageView: UIView {
                     await frameLoader.cancel()
                     return
                 }
-                self.loadedStaticSequenceIdentifier = Set(playbackPlan.frameIndices).count == 1
+                self.loadedStaticSequenceIdentifier = !playbackPlan.isAnimated
                     ? sequenceIdentifier
                     : nil
                 self.sequencePlayback.play(
                     firstFrame: firstFrame,
                     frameLoader: frameLoader,
                     frameIndices: playbackPlan.frameIndices,
+                    isAnimated: playbackPlan.isAnimated,
                     in: self.imageView,
                     frameInterval: playbackPlan.frameRate.frameDuration
                 )
@@ -373,6 +374,7 @@ private final class ImageSequencePlayback {
         firstFrame: UIImage,
         frameLoader: ImageSequenceFrameLoader<Loader>,
         frameIndices: [Int],
+        isAnimated: Bool,
         in imageView: UIImageView,
         frameInterval: TimeInterval
     ) {
@@ -386,7 +388,7 @@ private final class ImageSequencePlayback {
         self.cancelFrameLoading = { await frameLoader.cancel() }
         imageView.image = firstFrame
 
-        guard Set(frameIndices).count > 1 else {
+        guard isAnimated else {
             let cancelFrameLoading = self.cancelFrameLoading
             self.cancelFrameLoading = nil
             loadFrame = nil
