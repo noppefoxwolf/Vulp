@@ -181,6 +181,7 @@ public final class AsyncImageView: UIView {
 
     public override init(frame: CGRect) {
         super.init(frame: frame)
+        registerForDisplayScaleChanges()
         addSubview(imageView)
         imageView.isAccessibilityElement = false
         contentMode = .scaleAspectFit
@@ -188,6 +189,7 @@ public final class AsyncImageView: UIView {
 
     public required init?(coder: NSCoder) {
         super.init(coder: coder)
+        registerForDisplayScaleChanges()
         addSubview(imageView)
         imageView.isAccessibilityElement = false
         contentMode = .scaleAspectFit
@@ -230,11 +232,11 @@ public final class AsyncImageView: UIView {
         }
     }
 
-    public override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
-        super.traitCollectionDidChange(previousTraitCollection)
-        guard previousTraitCollection?.displayScale != traitCollection.displayScale else { return }
-        currentCacheIdentifier = nil
-        updateImageIfNeeded()
+    private func registerForDisplayScaleChanges() {
+        registerForTraitChanges([UITraitDisplayScale.self]) { (self: AsyncImageView, _) in
+            self.currentCacheIdentifier = nil
+            self.updateImageIfNeeded()
+        }
     }
 
     private func updateImageIfNeeded() {
