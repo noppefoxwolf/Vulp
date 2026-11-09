@@ -2,10 +2,15 @@ import Foundation
 import Vulp
 import Testing
 
-@Test func imageSizeBucketRoundsLongestDimensionUpToPowerOfTwoAndPreservesAspectRatio() {
+@Test func imageSizeBucketRoundsLongestDimensionUpToSquareRootOfTwoTierAndPreservesAspectRatio() {
     let size = ImageSizeBucket.pixelSize(for: CGSize(width: 300, height: 200))
 
-    #expect(size == CGSize(width: 512, height: 341))
+    #expect(size == CGSize(width: 362, height: 241))
+}
+
+@Test func imageSizeBucketAddsOneTierBetweenPowersOfTwo() {
+    #expect(ImageSizeBucket.pixelSize(for: CGSize(width: 512, height: 256)) == CGSize(width: 512, height: 256))
+    #expect(ImageSizeBucket.pixelSize(for: CGSize(width: 700, height: 350)) == CGSize(width: 724, height: 362))
 }
 
 @Test func imageSizeBucketUsesSameTierForNearbySizes() throws {
@@ -13,7 +18,7 @@ import Testing
     let first = try ImageLoadRequest(assetHandle: asset, targetSize: CGSize(width: 300, height: 200))
     let second = try ImageLoadRequest(assetHandle: asset, targetSize: CGSize(width: 320, height: 213))
 
-    #expect(first.targetSize == CGSize(width: 512, height: 341))
+    #expect(first.targetSize == CGSize(width: 362, height: 241))
     #expect(second.targetSize == first.targetSize)
     #expect(second.cacheIdentifier == first.cacheIdentifier)
 }

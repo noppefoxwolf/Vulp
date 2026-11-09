@@ -1,8 +1,8 @@
 import Foundation
 
-/// Maps requested pixel dimensions to a texture-friendly size tier.
+/// Maps requested pixel dimensions to a cache-friendly size tier.
 public enum ImageSizeBucket {
-    /// Rounds the longest edge up to a power-of-two tier while preserving the image aspect ratio.
+    /// Rounds the longest edge up through square-root-of-two tiers while preserving the image aspect ratio.
     /// Returns `nil` when the requested dimensions cannot be represented safely as pixel counts.
     public static func pixelSize(for requestedSize: CGSize) -> CGSize? {
         guard requestedSize.width.isFinite,
@@ -21,9 +21,10 @@ public enum ImageSizeBucket {
         let maximumRepresentableDimension = CGFloat(Int.max / 2)
         guard longestEdge <= maximumRepresentableDimension else { return nil }
 
+        let tierMultiplier = CGFloat(2).squareRoot()
         var tier: CGFloat = 1
         while tier < longestEdge {
-            tier *= 2
+            tier *= tierMultiplier
         }
 
         let scale = tier / longestEdge
