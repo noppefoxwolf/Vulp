@@ -15,6 +15,11 @@ public protocol MediaImageLoading: Sendable {
         _ request: Request,
         priority: TaskPriority
     ) async throws -> MediaImage
+
+    func prefetch<Request: MediaImageRequestProtocol>(
+        _ request: Request,
+        priority: TaskPriority
+    ) -> MediaImagePrefetchTask
 }
 
 public extension MediaImageLoading {
@@ -37,7 +42,10 @@ public extension MediaImageLoading {
         }
     }
 
-    /// Starts a low-priority request intended to warm the image cache.
+    /// Starts a low-priority request intended to warm the cache.
+    ///
+    /// The default implementation loads the image. Loaders that cache encoded
+    /// source data separately can override this to avoid decoding during prefetch.
     func prefetch<Request: MediaImageRequestProtocol>(
         _ request: Request,
         priority: TaskPriority = .background
@@ -166,6 +174,24 @@ public struct DefaultMediaImageLoader<Downloader: ImageDataDownloader, Processor
         try await load(request, process: { image in
             try await processor.process(image, for: request)
         }, priority: priority)
+    }
+
+    /// Prefetches only the encoded source data, without decoding or processing an image.
+    public func prefetch<Request: MediaImageRequestProtocol>(
+        _ request: Request,
+        priority: TaskPriority
+    ) -> MediaImagePrefetchTask {
+        let task = Task(priority: priority) { [self] in
+            do {
+                _ = try await data(for: request.assetHandle, priority: priority)
+            } catch is CancellationError {
+                // Cancellation is expected when a prefetched item leaves the
+                // collection's visible prefetch window.
+            } catch {
+                // A visible load can retry and report the failure to the UI.
+            }
+        }
+        return MediaImagePrefetchTask(task: task)
     }
 
     private func load<Request: MediaImageRequestProtocol>(

@@ -104,7 +104,7 @@ The standard `ImageIOImageDecoder` downsamples during decoding using the request
 
 ## Prefetching with UICollectionView
 
-Use the same loader and request builder for `UICollectionViewDataSourcePrefetching` and cell display. A prefetched request warms the cache for the cell. Cancel prefetch tasks when the collection view reports that an item is no longer needed.
+With `DefaultMediaImageLoader`, use the same asset identity for `UICollectionViewDataSourcePrefetching` and cell display. Prefetch downloads and stores only the encoded source in the disk cache; decoding and resizing happen when the cell requests the image. Cancel prefetch tasks when the collection view reports that an item is no longer needed.
 
 ```swift
 import Vulp
@@ -203,9 +203,9 @@ final class PhotoDataSource: NSObject,
 }
 ```
 
-The prefetch and cell requests should use the same `asset.uniqueKey`, size, rendering mode, and decoding options so they produce the same cache key. Cancel a cell's load task during reuse so an old result cannot be assigned to a reused cell.
+The prefetch and cell requests should use the same `asset.uniqueKey` so the cell load can reuse the encoded source from disk. Their size, rendering mode, and decoding options may differ because the default loader's prefetch does not create a decoded-image cache entry. Cancel a cell's load task during reuse so an old result cannot be assigned to a reused cell.
 
-`MediaImageLoading.prefetch(_:)` returns a cancellable `MediaImagePrefetchTask` and defaults to `.background` priority. Cancel it when an item leaves the prefetch window. The active shared load is cancelled when its last waiter goes away; cancelling one waiter does not interrupt a load still used by another caller. Set an explicit priority for visible work when needed:
+`MediaImageLoading.prefetch(_:)` returns a cancellable `MediaImagePrefetchTask` and defaults to `.background` priority. `DefaultMediaImageLoader` downloads only the encoded source into its data cache; custom loaders retain the default image-loading behavior unless they provide their own prefetch implementation. Concurrent source downloads with the same `uniqueKey` share one in-flight operation; different keys are treated as separate assets even when their URLs match. Cancel a prefetch task when an item leaves the prefetch window. The active shared download is cancelled when its last waiter goes away; cancelling one waiter does not interrupt a download still used by another caller. Set an explicit priority for visible work when needed:
 
 ```swift
 let image = try await loader.load(request, priority: .userInitiated)
