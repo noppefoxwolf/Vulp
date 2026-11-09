@@ -292,6 +292,33 @@ import UIKit
     #expect(await probe.cancellationCount == 1)
 }
 
+@Test @MainActor func uiKitAsyncImageViewKeepsSuccessfulRequestWhenReattached() async throws {
+    let probe = ImageLoadLifecycleProbe()
+    let loader = SuccessfulLoadCountingImageLoader(probe: probe)
+    let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 120, height: 120))
+    let view = AsyncImageView(frame: CGRect(x: 0, y: 0, width: 80, height: 80))
+    window.addSubview(view)
+
+    view.loadImage(using: loader) { _, _ in
+        try ImageLoadRequest(
+            assetHandle: DataImageAsset(data: Data([0]), uniqueKey: "successful-request-reappear"),
+            targetSize: CGSize(width: 80, height: 80)
+        )
+    }
+    await probe.waitForCompletionCount(1)
+    try await Task.sleep(for: .milliseconds(20))
+    let loadedImage = try #require(view.image)
+
+    view.removeFromSuperview()
+    window.addSubview(view)
+    view.layoutIfNeeded()
+    try await Task.sleep(for: .milliseconds(100))
+
+    #expect(view.image === loadedImage)
+    #expect(await probe.loadCount == 1)
+    #expect(await probe.completionCount == 1)
+}
+
 @Test @MainActor func uiKitAsyncImageViewAcceptsPointSizeAndScaleRequestBuilder() {
     let view = AsyncImageView(frame: CGRect(x: 0, y: 0, width: 120, height: 80))
     let asset = DataImageAsset(data: Data([0]), uniqueKey: "sized-uikit-view")
