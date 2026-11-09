@@ -16,6 +16,11 @@ public protocol MediaImageLoading: Sendable {
         priority: TaskPriority
     ) async throws -> MediaImage
 
+    func prefetch(
+        _ asset: any MediaAsset,
+        priority: TaskPriority
+    ) -> MediaImagePrefetchTask
+
     func prefetch<Request: MediaImageRequestProtocol>(
         _ request: Request,
         priority: TaskPriority
@@ -42,16 +47,17 @@ public extension MediaImageLoading {
         }
     }
 
-    /// Starts a low-priority request intended to warm the cache.
+    /// Starts a low-priority asset prefetch.
     ///
-    /// The default implementation loads the image. Loaders that cache encoded
-    /// source data separately can override this to avoid decoding during prefetch.
-    func prefetch<Request: MediaImageRequestProtocol>(
-        _ request: Request,
+    /// The default implementation loads a zero-sized image request. Loaders that
+    /// cache encoded source data separately can override this to avoid decoding.
+    func prefetch(
+        _ asset: any MediaAsset,
         priority: TaskPriority = .background
     ) -> MediaImagePrefetchTask {
         let task = Task(priority: priority) { [self] in
             do {
+                let request = try MediaImageRequest(assetHandle: asset, targetSize: .zero)
                 _ = try await load(request, priority: priority)
             } catch is CancellationError {
                 // Cancellation is expected when a prefetched item leaves the
@@ -61,6 +67,14 @@ public extension MediaImageLoading {
             }
         }
         return MediaImagePrefetchTask(task: task)
+    }
+
+    /// Compatibility overload. Encoded-source prefetch does not use request sizing.
+    func prefetch<Request: MediaImageRequestProtocol>(
+        _ request: Request,
+        priority: TaskPriority = .background
+    ) -> MediaImagePrefetchTask {
+        prefetch(request.assetHandle, priority: priority)
     }
 }
 
@@ -177,13 +191,13 @@ public struct DefaultMediaImageLoader<Downloader: ImageDataDownloader, Processor
     }
 
     /// Prefetches only the encoded source data, without decoding or processing an image.
-    public func prefetch<Request: MediaImageRequestProtocol>(
-        _ request: Request,
+    public func prefetch(
+        _ asset: any MediaAsset,
         priority: TaskPriority
     ) -> MediaImagePrefetchTask {
         let task = Task(priority: priority) { [self] in
             do {
-                _ = try await data(for: request.assetHandle, priority: priority)
+                _ = try await data(for: asset, priority: priority)
             } catch is CancellationError {
                 // Cancellation is expected when a prefetched item leaves the
                 // collection's visible prefetch window.
