@@ -3,7 +3,6 @@ import SwiftUI
 
 private typealias ExampleLoader = DefaultMediaImageLoader<
     DefaultImageDataDownloader,
-    ImageIOImageDecoder,
     ResizeImageProcessor,
     InMemoryImageCache
 >

@@ -156,47 +156,23 @@ public struct AsyncImage<Loader: MediaImageLoading, Content: View, Placeholder: 
         measuredSize.width > 0 && measuredSize.height > 0
     }
 
-    @ViewBuilder
     private func measuredContent<MeasuredContent: View>(
         @ViewBuilder content: () -> MeasuredContent
     ) -> some View {
-        measuringSize(of: ZStack {
+        ZStack {
             Color.clear
                 .allowsHitTesting(false)
             content()
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-        })
-    }
-
-    @ViewBuilder
-    private func measuringSize<SizeObservedContent: View>(of content: SizeObservedContent) -> some View {
-        if #available(iOS 18, macOS 15, *) {
-            content.onGeometryChange(for: CGSize.self) { geometry in
-                CGSize(
-                    width: geometry.size.width.rounded(.up),
-                    height: geometry.size.height.rounded(.up)
-                )
-            } action: { size in
-                guard size != measuredSize else { return }
-                measuredSize = size
-            }
-        } else {
-            content
-                .background {
-                    GeometryReader { geometry in
-                        Color.clear.preference(
-                            key: AsyncImageSizePreferenceKey.self,
-                            value: CGSize(
-                                width: geometry.size.width.rounded(.up),
-                                height: geometry.size.height.rounded(.up)
-                            )
-                        )
-                    }
-                }
-                .onPreferenceChange(AsyncImageSizePreferenceKey.self) { size in
-                    guard size != measuredSize else { return }
-                    measuredSize = size
-                }
+        }
+        .onGeometryChange(for: CGSize.self) { geometry in
+            CGSize(
+                width: geometry.size.width.rounded(.up),
+                height: geometry.size.height.rounded(.up)
+            )
+        } action: { size in
+            guard size != measuredSize else { return }
+            measuredSize = size
         }
     }
 
@@ -374,14 +350,6 @@ public extension AsyncImage where Content == Image {
             content: { $0 },
             placeholder: placeholder
         )
-    }
-}
-
-private struct AsyncImageSizePreferenceKey: PreferenceKey {
-    static let defaultValue: CGSize = .zero
-
-    static func reduce(value: inout CGSize, nextValue: () -> CGSize) {
-        value = nextValue()
     }
 }
 
