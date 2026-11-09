@@ -25,7 +25,7 @@ struct LoremPicsumView: View {
         ))
     }
 
-    private let columns = [GridItem(.adaptive(minimum: 150), spacing: 12)]
+    private let columns = [GridItem(.adaptive(minimum: 56), spacing: 8)]
 
     var body: some View {
         ScrollView {
@@ -100,12 +100,12 @@ struct LoremPicsumView: View {
         let seed = UUID().uuidString
 
         do {
-            requests = try (0..<18).map { index in
-                let url = URL(string: "https://picsum.photos/seed/\(seed)-\(index)/500/500")!
+            requests = try (0..<240).map { index in
+                let url = URL(string: "https://picsum.photos/seed/\(seed)-\(index)/250/250")!
                 let asset = RemoteMediaAsset(url: url, uniqueKey: url.absoluteString)
                 return try MediaImageRequest(
                     assetHandle: asset,
-                    targetSize: CGSize(width: 500, height: 500)
+                    targetSize: CGSize(width: 250, height: 250)
                 )
             }
             errorMessage = nil

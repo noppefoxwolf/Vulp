@@ -13,6 +13,12 @@ struct ContentView: View {
                     LoremPicsumView(dataCache: dataCache)
                 }
 
+                NavigationLink("UIKit 画像ビュー") {
+                    UIKitImageDemoView(dataCache: dataCache)
+                        .navigationTitle("UIKit 画像ビュー")
+                        .navigationBarTitleDisplayMode(.inline)
+                }
+
                 NavigationLink("ビューサイズに応じた画像処理") {
                     SizedImageDemoView(dataCache: dataCache)
                 }
