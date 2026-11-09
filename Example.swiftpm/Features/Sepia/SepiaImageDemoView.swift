@@ -4,7 +4,6 @@ import SwiftUI
 private typealias SepiaProcessor = ImageProcessorChain<ResizeImageProcessor, SepiaImageProcessor>
 private typealias SepiaExampleLoader = DefaultMediaImageLoader<
     DefaultImageDataDownloader,
-    ImageIOImageDecoder,
     SepiaProcessor,
     InMemoryImageCache
 >

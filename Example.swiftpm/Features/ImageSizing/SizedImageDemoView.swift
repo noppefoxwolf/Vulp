@@ -3,7 +3,6 @@ import SwiftUI
 
 private typealias SizedExampleLoader = DefaultMediaImageLoader<
     DefaultImageDataDownloader,
-    ImageIOImageDecoder,
     ResizeImageProcessor,
     InMemoryImageCache
 >

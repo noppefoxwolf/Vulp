@@ -19,6 +19,7 @@ public struct AsyncImage<Loader: MediaImageLoading, Content: View, Placeholder: 
 
     @State private var image: MediaImage?
     @State private var sequencePlayback: SequencePlaybackState<Loader>?
+    @State private var measuredSize: CGSize = .zero
     // Keeps a successful static image in place when SwiftUI restarts its task on reappearance.
     @State private var loadedTaskIdentifier: String?
 
@@ -115,32 +116,30 @@ public struct AsyncImage<Loader: MediaImageLoading, Content: View, Placeholder: 
 
     public var body: some View {
         if let makeSizedSequence {
-            GeometryReader { geometry in
-                let targetSize = CGSize(
-                    width: geometry.size.width.rounded(.up),
-                    height: geometry.size.height.rounded(.up)
-                )
-                let sequenceOperation = makeSizedSequence(targetSize, displayScale)
-                imageContent(
-                    for: nil,
-                    taskIdentifier: "\(taskIdentifier)|\(targetSize.width)x\(targetSize.height)@\(displayScale)",
-                    sequenceOperation: sequenceOperation
-                )
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            measuredContent {
+                if hasMeasuredSize {
+                    let sequenceOperation = makeSizedSequence(measuredSize, displayScale)
+                    imageContent(
+                        for: nil,
+                        taskIdentifier: "\(taskIdentifier)|\(measuredSize.width)x\(measuredSize.height)@\(displayScale)",
+                        sequenceOperation: sequenceOperation
+                    )
+                } else {
+                    placeholder
+                }
             }
         } else if let makeImageOperation {
             if sizingMode == .viewBounds {
-                GeometryReader { geometry in
-                    let targetSize = CGSize(
-                        width: geometry.size.width.rounded(.up),
-                        height: geometry.size.height.rounded(.up)
-                    )
-                    let operation = makeImageOperation(targetSize, displayScale)
-                    imageContent(
-                        for: operation,
-                        taskIdentifier: "\(targetSize.width)x\(targetSize.height)@\(displayScale)"
-                    )
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                measuredContent {
+                    if hasMeasuredSize {
+                        let operation = makeImageOperation(measuredSize, displayScale)
+                        imageContent(
+                            for: operation,
+                            taskIdentifier: "\(measuredSize.width)x\(measuredSize.height)@\(displayScale)"
+                        )
+                    } else {
+                        placeholder
+                    }
                 }
             } else {
                 let operation = makeImageOperation(nil, 1)
@@ -152,6 +151,30 @@ public struct AsyncImage<Loader: MediaImageLoading, Content: View, Placeholder: 
     }
 
     @Environment(\.displayScale) private var displayScale
+
+    private var hasMeasuredSize: Bool {
+        measuredSize.width > 0 && measuredSize.height > 0
+    }
+
+    private func measuredContent<MeasuredContent: View>(
+        @ViewBuilder content: () -> MeasuredContent
+    ) -> some View {
+        ZStack {
+            Color.clear
+                .allowsHitTesting(false)
+            content()
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .onGeometryChange(for: CGSize.self) { geometry in
+            CGSize(
+                width: geometry.size.width.rounded(.up),
+                height: geometry.size.height.rounded(.up)
+            )
+        } action: { size in
+            guard size != measuredSize else { return }
+            measuredSize = size
+        }
+    }
 
     @ViewBuilder
     private func imageContent(
