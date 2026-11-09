@@ -160,26 +160,43 @@ public struct AsyncImage<Loader: MediaImageLoading, Content: View, Placeholder: 
     private func measuredContent<MeasuredContent: View>(
         @ViewBuilder content: () -> MeasuredContent
     ) -> some View {
-        ZStack {
+        measuringSize(of: ZStack {
             Color.clear
                 .allowsHitTesting(false)
             content()
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-        }
-        .background {
-            GeometryReader { geometry in
-                Color.clear.preference(
-                    key: AsyncImageSizePreferenceKey.self,
-                    value: CGSize(
-                        width: geometry.size.width.rounded(.up),
-                        height: geometry.size.height.rounded(.up)
-                    )
+        })
+    }
+
+    @ViewBuilder
+    private func measuringSize<SizeObservedContent: View>(of content: SizeObservedContent) -> some View {
+        if #available(iOS 18, macOS 15, *) {
+            content.onGeometryChange(for: CGSize.self) { geometry in
+                CGSize(
+                    width: geometry.size.width.rounded(.up),
+                    height: geometry.size.height.rounded(.up)
                 )
+            } action: { size in
+                guard size != measuredSize else { return }
+                measuredSize = size
             }
-        }
-        .onPreferenceChange(AsyncImageSizePreferenceKey.self) { size in
-            guard size != measuredSize else { return }
-            measuredSize = size
+        } else {
+            content
+                .background {
+                    GeometryReader { geometry in
+                        Color.clear.preference(
+                            key: AsyncImageSizePreferenceKey.self,
+                            value: CGSize(
+                                width: geometry.size.width.rounded(.up),
+                                height: geometry.size.height.rounded(.up)
+                            )
+                        )
+                    }
+                }
+                .onPreferenceChange(AsyncImageSizePreferenceKey.self) { size in
+                    guard size != measuredSize else { return }
+                    measuredSize = size
+                }
         }
     }
 
