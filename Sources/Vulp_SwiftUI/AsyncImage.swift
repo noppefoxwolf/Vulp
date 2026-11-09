@@ -19,6 +19,8 @@ public struct AsyncImage<Loader: MediaImageLoading, Content: View, Placeholder: 
 
     @State private var image: MediaImage?
     @State private var sequencePlayback: SequencePlaybackState<Loader>?
+    // Keeps a successful static image in place when SwiftUI restarts its task on reappearance.
+    @State private var loadedTaskIdentifier: String?
 
     /// Loads a single image request.
     public init<Request: MediaImageRequestProtocol>(
@@ -175,30 +177,33 @@ public struct AsyncImage<Loader: MediaImageLoading, Content: View, Placeholder: 
             }
         }
         .task(id: operation?.cacheIdentifier ?? taskIdentifier) {
+            let activeTaskIdentifier = operation?.cacheIdentifier ?? taskIdentifier
             if let sequenceOperation {
                 do {
-                    try await playSequence(using: sequenceOperation)
+                    try await playSequence(using: sequenceOperation, taskIdentifier: activeTaskIdentifier)
                 } catch is CancellationError {
                     return
                 } catch {
                     onFailure?(error)
                 }
             } else if let operation {
-                await load(operation: operation)
+                await load(operation: operation, taskIdentifier: activeTaskIdentifier)
             } else {
-                await load()
+                await load(taskIdentifier: activeTaskIdentifier)
             }
         }
     }
 
     @MainActor
-    private func load(operation: ImageLoadingOperation) async {
+    private func load(operation: ImageLoadingOperation, taskIdentifier: String) async {
+        guard loadedTaskIdentifier != taskIdentifier || image == nil else { return }
         image = nil
         sequencePlayback = nil
         do {
             let loadedImage = try await operation.load()
             try Task.checkCancellation()
             image = loadedImage
+            loadedTaskIdentifier = taskIdentifier
         } catch is CancellationError {
             return
         } catch {
@@ -207,17 +212,26 @@ public struct AsyncImage<Loader: MediaImageLoading, Content: View, Placeholder: 
     }
 
     @MainActor
-    private func load() async {
-        image = nil
-        sequencePlayback = nil
+    private func load(taskIdentifier: String) async {
         do {
             if let loadSequence {
-                try await playSequence(using: loadSequence)
+                guard loadedTaskIdentifier != taskIdentifier || sequencePlayback != nil || image == nil else {
+                    return
+                }
+                image = nil
+                sequencePlayback = nil
+                try await playSequence(using: loadSequence, taskIdentifier: taskIdentifier)
                 return
             }
+            guard loadedTaskIdentifier != taskIdentifier || image == nil else { return }
+            image = nil
+            sequencePlayback = nil
             let loadedImages = try await loadImages()
             try Task.checkCancellation()
             image = loadedImages.first
+            if image != nil {
+                loadedTaskIdentifier = taskIdentifier
+            }
         } catch is CancellationError {
             return
         } catch {
@@ -227,7 +241,8 @@ public struct AsyncImage<Loader: MediaImageLoading, Content: View, Placeholder: 
 
     @MainActor
     private func playSequence(
-        using loadSequence: @MainActor @Sendable () async throws -> (ImageSequenceFrameLoader<Loader>, ImageSequencePlaybackPlan)
+        using loadSequence: @MainActor @Sendable () async throws -> (ImageSequenceFrameLoader<Loader>, ImageSequencePlaybackPlan),
+        taskIdentifier: String
     ) async throws {
         let (frameLoader, playbackPlan) = try await loadSequence()
         try await withTaskCancellationHandler {
@@ -240,10 +255,12 @@ public struct AsyncImage<Loader: MediaImageLoading, Content: View, Placeholder: 
                 try Task.checkCancellation()
                 guard Set(playbackPlan.frameIndices).count > 1 else {
                     image = firstImage
+                    loadedTaskIdentifier = taskIdentifier
                     await frameLoader.cancel()
                     return
                 }
                 image = nil
+                loadedTaskIdentifier = nil
                 sequencePlayback = SequencePlaybackState(
                     frameLoader: frameLoader,
                     playbackPlan: playbackPlan,
