@@ -151,9 +151,13 @@ final class PhotoDataSource: NSObject,
         self.urls = urls
     }
 
+    private func asset(at indexPath: IndexPath) -> RemoteMediaAsset {
+        RemoteMediaAsset(url: urls[indexPath.item])
+    }
+
     private func request(at indexPath: IndexPath) throws -> MediaImageRequest {
         try MediaImageRequest(
-            assetHandle: RemoteMediaAsset(url: urls[indexPath.item]),
+            assetHandle: asset(at: indexPath),
             targetSize: CGSize(width: 450, height: 450)
         )
     }
@@ -186,8 +190,7 @@ final class PhotoDataSource: NSObject,
         prefetchItemsAt indexPaths: [IndexPath]
     ) {
         for indexPath in indexPaths where prefetchTasks[indexPath] == nil {
-            guard let request = try? request(at: indexPath) else { continue }
-            prefetchTasks[indexPath] = loader.prefetch(request)
+            prefetchTasks[indexPath] = loader.prefetch(asset(at: indexPath))
         }
     }
 
@@ -205,7 +208,7 @@ final class PhotoDataSource: NSObject,
 
 The prefetch and cell requests should use the same `asset.uniqueKey` so the cell load can reuse the encoded source from disk. Their size, rendering mode, and decoding options may differ because the default loader's prefetch does not create a decoded-image cache entry. Cancel a cell's load task during reuse so an old result cannot be assigned to a reused cell.
 
-`MediaImageLoading.prefetch(_:)` returns a cancellable `MediaImagePrefetchTask` and defaults to `.background` priority. `DefaultMediaImageLoader` downloads only the encoded source into its data cache; custom loaders retain the default image-loading behavior unless they provide their own prefetch implementation. Concurrent source downloads with the same `uniqueKey` share one in-flight operation; different keys are treated as separate assets even when their URLs match. Cancel a prefetch task when an item leaves the prefetch window. The active shared download is cancelled when its last waiter goes away; cancelling one waiter does not interrupt a download still used by another caller. Set an explicit priority for visible work when needed:
+`MediaImageLoading.prefetch(_ asset:)` returns a cancellable `MediaImagePrefetchTask` and defaults to `.background` priority. `DefaultMediaImageLoader` downloads only the encoded source into its data cache; other loaders can implement asset prefetching as needed. Concurrent source downloads with the same `uniqueKey` share one in-flight operation; different keys are treated as separate assets even when their URLs match. Cancel a prefetch task when an item leaves the prefetch window. The active shared download is cancelled when its last waiter goes away; cancelling one waiter does not interrupt a download still used by another caller. The `prefetch(_ request:)` overload remains available and forwards to `request.assetHandle`, so request size is ignored. Set an explicit priority for visible work when needed:
 
 ```swift
 let image = try await loader.load(request, priority: .userInitiated)
