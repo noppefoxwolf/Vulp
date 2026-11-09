@@ -20,10 +20,6 @@ Vulp is an image and video thumbnail loading library built with Swift Concurrenc
 - iOS 18+
 - macOS 14+
 
-## Architecture
-
-See [docs/architecture.md](docs/architecture.md) (Japanese) for the package boundaries, loading and caching pipeline, and the responsibilities of the SwiftUI and UIKit views.
-
 ## Installation
 
 Add this repository in Xcode with **File > Add Package Dependencies…**, then select the products your target needs:
