@@ -27,8 +27,8 @@ import Testing
 
     let result = try await ResizeImageProcessor().process(source, for: request)
 
-    #expect(result.pixelWidth == 1)
-    #expect(result.pixelHeight == 1)
+    #expect(result.width == 1)
+    #expect(result.height == 1)
 }
 
 @Test func resizeProcessorDownsamplesWithoutChangingSourceAspectRatio() async throws {
@@ -41,8 +41,8 @@ import Testing
 
     let result = try await ResizeImageProcessor().process(source, for: request)
 
-    #expect(result.pixelWidth == 6)
-    #expect(result.pixelHeight == 2)
+    #expect(result.width == 6)
+    #expect(result.height == 2)
 }
 
 @Test func resizeProcessorReturnsSourceForZeroSizedRequest() async throws {
@@ -56,21 +56,6 @@ import Testing
     let result = try await ResizeImageProcessor().process(source, for: request)
 
     #expect(result === source)
-}
-
-@Test func resizeProcessorKeepsTemplateModeSeparateFromBitmap() async throws {
-    let source = try await TestImageData.image()
-    let asset = DataImageAsset(data: TestImageData.png, uniqueKey: "template")
-    let request = try ImageLoadRequest(
-        assetHandle: asset,
-        targetSize: .zero,
-        renderingMode: .template
-    )
-
-    let result = try await ResizeImageProcessor().process(source, for: request)
-
-    #expect(result === source)
-    #expect(request.renderingMode == .template)
 }
 
 private actor ProcessorCallRecorder {

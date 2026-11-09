@@ -5,8 +5,8 @@ import Testing
 @Test func imageDeserializerDecodesPNGData() async throws {
     let image = try await ImageIOImageDeserializer().deserialize(TestImageData.png)
 
-    #expect(image.pixelWidth == 1)
-    #expect(image.pixelHeight == 1)
+    #expect(image.width == 1)
+    #expect(image.height == 1)
 }
 
 @Test func imageDeserializerRejectsInvalidData() async {

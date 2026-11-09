@@ -74,8 +74,8 @@ private actor RecordingSequenceTransport: HTTPImageDataTransport {
         options: .frame(index: 1)
     )
 
-    #expect(firstFrame.pixelWidth == 16)
-    #expect(secondFrame.pixelWidth == 16)
+    #expect(firstFrame.width == 16)
+    #expect(secondFrame.width == 16)
     #expect(pixelColor(firstFrame) != pixelColor(secondFrame))
 }
 
@@ -93,8 +93,8 @@ func imageIODecoderReportsAndSelectsAPNGAndWebPFrames(filename: String) async th
     let firstFrame = try await deserializer.deserialize(data, options: .frame(index: 0))
     let secondFrame = try await deserializer.deserialize(data, options: .frame(index: 1))
 
-    #expect(firstFrame.pixelWidth == 16)
-    #expect(secondFrame.pixelWidth == 16)
+    #expect(firstFrame.width == 16)
+    #expect(secondFrame.width == 16)
     #expect(pixelColor(firstFrame) != pixelColor(secondFrame))
 }
 

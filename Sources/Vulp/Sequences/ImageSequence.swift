@@ -28,8 +28,7 @@ public struct ImageSequence: Sendable {
     /// Creates a cacheable request for one frame in this sequence.
     public func frameRequest(
         at index: Int,
-        targetSize: CGSize,
-        renderingMode: ImageRenderingMode = .original
+        targetSize: CGSize
     ) throws -> MediaImageRequest {
         guard index >= 0, index < frameCount else {
             throw ImageSequenceError.invalidFrameIndex(index)
@@ -39,7 +38,6 @@ public struct ImageSequence: Sendable {
         return try MediaImageRequest(
             assetHandle: asset,
             targetSize: targetSize,
-            renderingMode: renderingMode,
             decodingOptions: .frame(index: index)
         )
     }

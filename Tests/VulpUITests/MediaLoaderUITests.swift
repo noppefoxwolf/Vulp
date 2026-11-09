@@ -203,8 +203,8 @@ private struct SuccessfulLoadCountingImageLoader: MediaImageSequenceLoading {
     )
     let image = try await TestImageLoader().load(request)
 
-    #expect(image.pixelWidth == 1)
-    #expect(image.pixelHeight == 1)
+    #expect(image.width == 1)
+    #expect(image.height == 1)
 }
 
 @Test @MainActor func defaultImageLoaderCanBeAwaitedFromMainActor() async throws {
@@ -225,8 +225,8 @@ private struct SuccessfulLoadCountingImageLoader: MediaImageSequenceLoading {
 
     let image = try await loader.load(request)
 
-    #expect(image.pixelWidth == 8)
-    #expect(image.pixelHeight == 8)
+    #expect(image.width == 8)
+    #expect(image.height == 8)
 }
 
 private enum AnimatedGIFFixture {

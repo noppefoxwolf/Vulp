@@ -5,7 +5,7 @@
 
 ## Context
 
-Vulp's decoders already produce decoded `CGImage` values, but immediately wrapped them in `UIImage` or `NSImage`. The processor then extracted the `CGImage` again to resize pixels. These platform wrappers carry UI presentation details such as scale and template rendering mode, while the shared loading and caching pipeline handles decoded pixel data.
+Vulp's decoders already produce decoded `CGImage` values, but immediately wrapped them in `UIImage` or `NSImage`. The processor then extracted the `CGImage` again to resize pixels. These platform wrappers carry UI presentation details such as scale and template rendering mode, while the shared loading and caching pipeline handles decoded pixel data. Vulp's standard views only need original-color image presentation.
 
 The UIKit integration now presents a `CGImage` directly through Core Animation. Keeping `MediaImage` platform-specific would continue wrapping and unwrapping the same bitmap as images flow through decoders, processors, caches, sequences, and UI targets.
 
@@ -13,7 +13,7 @@ The UIKit integration now presents a `CGImage` directly through Core Animation. 
 
 - Define `MediaImage` as `CGImage` for the shared loading, decoding, processing, and caching pipeline.
 - Have decoders and processors return `CGImage` directly. Treat the decoded pixel dimensions as the image dimensions; platform image scale and orientation wrappers are not part of `MediaImage`.
-- Keep rendering mode as request metadata and apply it in UI targets. Do not bake template/original presentation state into the decoded bitmap or its cache identity.
+- Standard UI integrations display images in original color. Do not add a rendering-mode property to requests or decoded bitmaps.
 - Create `UIImage` and `NSImage` wrappers only at UI boundaries that require them. UIKit's layer-backed view accepts and displays `CGImage` directly.
 - Keep intrinsic sizing in the UI integration: explicit pixel images report pixel dimensions as points; bounds-sized views derive their size from layout.
 
@@ -30,6 +30,6 @@ The UIKit integration now presents a `CGImage` directly through Core Animation. 
 ## Consequences
 
 - `MediaImage`, fallback image parameters, processor inputs/outputs, and UIKit image properties now use `CGImage`; this is a deliberate public API change before the first major release.
-- The same decoded bitmap can be cached and reused for original and template presentation modes.
-- SwiftUI applies `Image.RenderingMode` when creating its `Image`; UIKit applies template tinting in its display layer; AppKit creates an `NSImage` only when assigning to `NSImageView`.
+- The same decoded bitmap can be cached and reused across UI integrations without presentation-mode cache variants.
+- SwiftUI creates decorative `Image` values from the `CGImage`; UIKit presents it directly in its display layer; AppKit creates an `NSImage` only when assigning to `NSImageView`.
 - Callers that need a platform image must create it at their UI boundary and provide any presentation metadata separately.

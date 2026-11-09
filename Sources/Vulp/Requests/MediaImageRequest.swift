@@ -10,7 +10,6 @@ public typealias ImageLoadRequestError = MediaImageRequestError
 public struct MediaImageRequest: MediaImageRequestProtocol {
     public let assetHandle: any MediaAsset
     public let targetSize: CGSize
-    public let renderingMode: ImageRenderingMode
     public let decodingOptions: ImageDecodingOptions
     public let cacheIdentifier: String
 
@@ -34,7 +33,6 @@ public struct MediaImageRequest: MediaImageRequestProtocol {
         assetHandle: any MediaAsset,
         targetSize: CGSize,
         scale: CGFloat = 1,
-        renderingMode: ImageRenderingMode = .original,
         decodingOptions: ImageDecodingOptions = .firstFrame,
         cacheIdentifier: String? = nil
     ) throws {
@@ -58,7 +56,6 @@ public struct MediaImageRequest: MediaImageRequestProtocol {
 
         self.assetHandle = assetHandle
         self.targetSize = bucketedPixelSize
-        self.renderingMode = renderingMode
         self.decodingOptions = decodingOptions
         if let cacheIdentifier {
             self.cacheIdentifier = cacheIdentifier
