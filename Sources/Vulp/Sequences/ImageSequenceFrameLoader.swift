@@ -5,7 +5,6 @@ public actor ImageSequenceFrameLoader<Loader: MediaImageLoading> {
     private let sequence: ImageSequence
     private let loader: Loader
     private let targetSize: CGSize
-    private let resizeMode: ImageResizeMode
     private let prefetchCount: Int
     private let playbackFrameIndices: [Int]?
     private var frameTasks: [Int: Task<MediaImage, any Error>] = [:]
@@ -14,14 +13,12 @@ public actor ImageSequenceFrameLoader<Loader: MediaImageLoading> {
         sequence: ImageSequence,
         using loader: Loader,
         targetSize: CGSize,
-        resizeMode: ImageResizeMode = .fit,
         prefetchCount: Int = 3,
         playbackFrameIndices: [Int]? = nil
     ) {
         self.sequence = sequence
         self.loader = loader
         self.targetSize = targetSize
-        self.resizeMode = resizeMode
         self.prefetchCount = max(0, prefetchCount)
         self.playbackFrameIndices = playbackFrameIndices
     }
@@ -88,7 +85,7 @@ public actor ImageSequenceFrameLoader<Loader: MediaImageLoading> {
 
     private func schedule(_ index: Int) throws {
         guard frameTasks[index] == nil else { return }
-        let request = try sequence.frameRequest(at: index, targetSize: targetSize, resizeMode: resizeMode)
+        let request = try sequence.frameRequest(at: index, targetSize: targetSize)
 
         let loader = self.loader
         frameTasks[index] = Task {

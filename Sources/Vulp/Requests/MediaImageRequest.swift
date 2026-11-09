@@ -11,7 +11,6 @@ public struct MediaImageRequest: MediaImageRequestProtocol {
     public let assetHandle: any MediaAsset
     public let targetSize: CGSize
     public let renderingMode: ImageRenderingMode
-    public let resizeMode: ImageResizeMode
     public let decodingOptions: ImageDecodingOptions
     public let cacheIdentifier: String
 
@@ -19,7 +18,6 @@ public struct MediaImageRequest: MediaImageRequestProtocol {
         asset: any MediaAsset,
         targetSize: CGSize,
         renderingMode: ImageRenderingMode,
-        resizeMode: ImageResizeMode = .fit,
         decodingOptions: ImageDecodingOptions = .firstFrame
     ) -> String {
         let decodingKey: String
@@ -29,17 +27,15 @@ public struct MediaImageRequest: MediaImageRequestProtocol {
         case .frame(let index):
             decodingKey = "|frame:\(index)"
         }
-        return "\(asset.uniqueKey)|\(targetSize.width)x\(targetSize.height)|\(renderingMode.rawValue)|resize:\(resizeMode.rawValue)\(decodingKey)"
+        return "\(asset.uniqueKey)|\(targetSize.width)x\(targetSize.height)|\(renderingMode.rawValue)\(decodingKey)"
     }
 
     /// Creates a request from a point size and display scale. Use the default scale of `1` for explicit pixel dimensions.
-    /// - Parameter resizeMode: Fits the whole source or fills and center-crops the requested size.
     public init(
         assetHandle: any MediaAsset,
         targetSize: CGSize,
         scale: CGFloat = 1,
         renderingMode: ImageRenderingMode = .original,
-        resizeMode: ImageResizeMode = .fit,
         decodingOptions: ImageDecodingOptions = .firstFrame,
         cacheIdentifier: String? = nil
     ) throws {
@@ -64,7 +60,6 @@ public struct MediaImageRequest: MediaImageRequestProtocol {
         self.assetHandle = assetHandle
         self.targetSize = bucketedPixelSize
         self.renderingMode = renderingMode
-        self.resizeMode = resizeMode
         self.decodingOptions = decodingOptions
         if let cacheIdentifier {
             self.cacheIdentifier = cacheIdentifier
@@ -73,7 +68,6 @@ public struct MediaImageRequest: MediaImageRequestProtocol {
                 asset: assetHandle,
                 targetSize: bucketedPixelSize,
                 renderingMode: renderingMode,
-                resizeMode: resizeMode,
                 decodingOptions: decodingOptions
             )
         }

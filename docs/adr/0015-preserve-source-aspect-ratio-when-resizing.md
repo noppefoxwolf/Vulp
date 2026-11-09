@@ -1,6 +1,6 @@
 # 0015. Preserve source aspect ratio when resizing
 
-- Status: Accepted
+- Status: Superseded by [0016. Keep image presentation modes in UI targets](0016-image-presentation-in-ui-targets.md)
 - Date: 2026-11-09
 
 ## Context

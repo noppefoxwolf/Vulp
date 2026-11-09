@@ -34,7 +34,7 @@ func resizeConvertsNonRGBImages(cmyk: Bool) async throws {
     #expect(CGImageDestinationFinalize(destination))
     let image = try await ImageIOImageDecoder().deserialize(data as Data)
     let request = try MediaImageRequest(assetHandle: DataMediaAsset(data: data as Data),
-        targetSize: CGSize(width: 16, height: 16), renderingMode: .template, resizeMode: .fill)
+        targetSize: CGSize(width: 16, height: 16), renderingMode: .template)
     let result = try await ResizeImageProcessor().process(image, for: request)
     #expect(result.pixelWidth == 16)
     #expect(result.pixelHeight == 16)

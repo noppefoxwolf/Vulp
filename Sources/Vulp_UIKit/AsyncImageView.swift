@@ -48,7 +48,6 @@ public final class AsyncImageView: UIView {
         url: URL,
         levelOfIntegrity: Double = 1,
         prefetchCount: Int = 3,
-        resizeMode: ImageResizeMode = .fit,
         onFailure: (@MainActor @Sendable (any Error) -> Void)? = nil
     ) {
         imageLoadTask?.cancel()
@@ -63,7 +62,6 @@ public final class AsyncImageView: UIView {
                 asset: asset,
                 levelOfIntegrity: levelOfIntegrity,
                 prefetchCount: prefetchCount,
-                resizeMode: resizeMode,
                 onFailure: onFailure
             )
         }
@@ -75,7 +73,6 @@ public final class AsyncImageView: UIView {
                 asset: asset,
                 levelOfIntegrity: levelOfIntegrity,
                 prefetchCount: prefetchCount,
-                resizeMode: resizeMode,
                 onFailure: onFailure
             )
         }
@@ -86,16 +83,14 @@ public final class AsyncImageView: UIView {
         asset: any MediaAsset,
         targetSize: CGSize,
         levelOfIntegrity: Double = 1,
-        prefetchCount: Int = 3,
-        resizeMode: ImageResizeMode = .fit
+        prefetchCount: Int = 3
     ) async throws {
         try await loadImage(
             asset: asset,
             using: MediaImageLoader.default,
             targetSize: targetSize,
             levelOfIntegrity: levelOfIntegrity,
-            prefetchCount: prefetchCount,
-            resizeMode: resizeMode
+            prefetchCount: prefetchCount
         )
     }
 
@@ -105,8 +100,7 @@ public final class AsyncImageView: UIView {
         using loader: Loader,
         targetSize: CGSize,
         levelOfIntegrity: Double = 1,
-        prefetchCount: Int = 3,
-        resizeMode: ImageResizeMode = .fit
+        prefetchCount: Int = 3
     ) async throws {
         imageLoadTask?.cancel()
         imageLoadTask = nil
@@ -121,7 +115,6 @@ public final class AsyncImageView: UIView {
             sequence: sequence,
             using: loader,
             targetSize: targetSize,
-            resizeMode: resizeMode,
             prefetchCount: prefetchCount,
             playbackFrameIndices: playbackPlan.frameIndices
         )
@@ -294,7 +287,6 @@ public final class AsyncImageView: UIView {
         asset: any MediaAsset,
         levelOfIntegrity: Double,
         prefetchCount: Int,
-        resizeMode: ImageResizeMode,
         onFailure: (@MainActor @Sendable (any Error) -> Void)?
     ) {
         guard window != nil, imageLoadTask == nil else { return }
@@ -306,7 +298,7 @@ public final class AsyncImageView: UIView {
             width: (bounds.width * scale).rounded(.up),
             height: (bounds.height * scale).rounded(.up)
         )
-        let sequenceIdentifier = "\(asset.uniqueKey)|\(targetSize.width)x\(targetSize.height)|integrity:\(levelOfIntegrity)|resize:\(resizeMode.rawValue)"
+        let sequenceIdentifier = "\(asset.uniqueKey)|\(targetSize.width)x\(targetSize.height)|integrity:\(levelOfIntegrity)"
         guard loadedStaticSequenceIdentifier != sequenceIdentifier || imageView.image == nil else { return }
         let loader = MediaImageLoader.default
         imageLoadTask = Task { @MainActor [weak self] in
@@ -317,7 +309,6 @@ public final class AsyncImageView: UIView {
                     sequence: sequence,
                     using: loader,
                     targetSize: targetSize,
-                    resizeMode: resizeMode,
                     prefetchCount: prefetchCount,
                     playbackFrameIndices: playbackPlan.frameIndices
                 )

@@ -23,7 +23,7 @@ import AppKit
     #expect(await recorder.calls == ["first", "second"])
 }
 
-@Test func resizeProcessorProducesBucketedPixelSize() async throws {
+@Test func resizeProcessorDoesNotUpscaleSmallSourceToBucketSize() async throws {
     let source = try await TestImageData.image()
     let asset = DataImageAsset(data: TestImageData.png, uniqueKey: "fixture")
     let request = try ImageLoadRequest(
@@ -33,55 +33,22 @@ import AppKit
 
     let result = try await ResizeImageProcessor().process(source, for: request)
 
-    #expect(result.pixelWidth == 11)
-    #expect(result.pixelHeight == 11)
+    #expect(result.pixelWidth == 1)
+    #expect(result.pixelHeight == 1)
 }
 
-@Test func resizeProcessorFitsWithoutChangingSourceAspectRatio() async throws {
+@Test func resizeProcessorDownsamplesWithoutChangingSourceAspectRatio() async throws {
     let source = try processorFixtureImage()
     let asset = DataImageAsset(data: TestImageData.png, uniqueKey: "fit-resize")
     let request = try ImageLoadRequest(
         assetHandle: asset,
-        targetSize: CGSize(width: 8, height: 8),
-        resizeMode: .fit
+        targetSize: CGSize(width: 8, height: 8)
     )
 
     let result = try await ResizeImageProcessor().process(source, for: request)
 
-    #expect(result.pixelWidth == 8)
-    #expect(result.pixelHeight == 3)
-}
-
-@Test func resizeProcessorFillsAndCenterCropsToRequestedSize() async throws {
-    let source = try processorFixtureImage()
-    let asset = DataImageAsset(data: TestImageData.png, uniqueKey: "fill-resize")
-    let request = try ImageLoadRequest(
-        assetHandle: asset,
-        targetSize: CGSize(width: 8, height: 8),
-        resizeMode: .fill
-    )
-
-    let result = try await ResizeImageProcessor().process(source, for: request)
-
-    #expect(result.pixelWidth == 8)
-    #expect(result.pixelHeight == 8)
-    #expect(processorPixelColor(result, x: 4, y: 4) == [0, 255, 0])
-}
-
-@Test func resizeModeChangesCacheIdentity() throws {
-    let asset = DataImageAsset(data: TestImageData.png, uniqueKey: "resize-mode-cache")
-    let fitRequest = try ImageLoadRequest(
-        assetHandle: asset,
-        targetSize: CGSize(width: 8, height: 8),
-        resizeMode: .fit
-    )
-    let fillRequest = try ImageLoadRequest(
-        assetHandle: asset,
-        targetSize: CGSize(width: 8, height: 8),
-        resizeMode: .fill
-    )
-
-    #expect(fitRequest.cacheIdentifier != fillRequest.cacheIdentifier)
+    #expect(result.pixelWidth == 6)
+    #expect(result.pixelHeight == 2)
 }
 
 @Test func resizeProcessorReturnsSourceForZeroSizedRequest() async throws {

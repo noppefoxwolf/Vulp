@@ -62,7 +62,7 @@ struct RemotePhoto: View {
 
 `VulpUI.AsyncImage(url:)` sizes the request from its displayed bounds and environment display scale. To customize the image or placeholder, pass `content` and `placeholder` closures; the `content` closure receives a SwiftUI `Image`, so apply `.resizable()`, `.scaledToFit()`, or other image modifiers there. It accepts an optional failure callback and plays animated sources incrementally. For custom loaders or request options, use one of the request-based initializers.
 
-The default resize mode is `.fit`. Pass `resizeMode: .fill` to URL-based SwiftUI/UIKit loads or to `MediaImageRequest` to cover the requested bounds and center-crop the source.
+The processor downsamples images to the request's bucketed pixel size while preserving their aspect ratio. Choose presentation behavior in the UI: set `UIImageView.contentMode` / `AsyncImageView.contentMode` in UIKit, or use `.scaledToFit()` / `.scaledToFill()` in SwiftUI. Since presentation mode is not part of the request or cache key, the same bucketed image can be reused for either mode.
 
 ## Performance-conscious loading
 
@@ -101,7 +101,7 @@ let request = try MediaImageRequest(
 let image = try await imageLoader.load(request)
 ```
 
-The standard `ImageIOImageDecoder` downsamples during decoding using the requested size as an upper bound. `ResizeImageProcessor` preserves the source aspect ratio and supports `.fit` (show the whole image within the requested size) and `.fill` (cover the requested size and center-crop overflow). `.fit` is the default. Matching request sizes to the display avoids decoding unnecessarily large images for a scrolling list.
+The standard `ImageIOImageDecoder` downsamples during decoding using the requested size as an upper bound. `ResizeImageProcessor` applies the request's bucketed size while preserving the source aspect ratio; fit and fill are presentation choices owned by the UI. Matching request sizes to the display avoids decoding unnecessarily large images for a scrolling list. The display layer may scale the processed image to the view's bounds.
 
 ## Prefetching with UICollectionView
 
