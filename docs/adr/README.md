@@ -29,3 +29,4 @@ This directory stores decisions that affect Vulp's architecture and public API.
 - [0016. Keep image presentation modes in UI targets](0016-image-presentation-in-ui-targets.md)
 - [0017. Let decoders select supported media sources](0017-decoder-driven-source-selection.md)
 - [0018. Select sequence decoders from the runtime decoder list](0018-runtime-sequence-decoder-selection.md)
+- [0019. Present UIKit images with CALayer](0019-use-calayer-for-uikit-image-presentation.md)
