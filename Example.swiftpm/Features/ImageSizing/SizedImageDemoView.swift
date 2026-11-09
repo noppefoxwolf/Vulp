@@ -1,9 +1,10 @@
 import VulpUI
 import SwiftUI
 
+private typealias SizedExampleProcessor = ImageProcessorChain<ResizeImageProcessor, ImageSizeDebugProcessor>
 private typealias SizedExampleLoader = DefaultMediaImageLoader<
     DefaultImageDataDownloader,
-    ResizeImageProcessor,
+    SizedExampleProcessor,
     InMemoryImageCache
 >
 
@@ -11,19 +12,14 @@ struct SizedImageDemoView: View {
     @Environment(\.displayScale) private var displayScale
     @State private var viewSize: CGFloat = 180
     @State private var usesFill = false
+    @State private var showsImageSize = false
     @State private var loader: SizedExampleLoader
 
     private let dataCache: DiskImageDataCache
 
     init(dataCache: DiskImageDataCache) {
         self.dataCache = dataCache
-        _loader = State(initialValue: SizedExampleLoader(
-            downloader: DefaultImageDataDownloader(),
-            decoder: ImageIOImageDecoder(),
-            processor: ResizeImageProcessor(),
-            cache: InMemoryImageCache(),
-            dataCache: dataCache
-        ))
+        _loader = State(initialValue: Self.makeLoader(showsImageSize: false, dataCache: dataCache))
     }
 
     private let asset = RemoteMediaAsset(
@@ -54,16 +50,28 @@ struct SizedImageDemoView: View {
                 .pickerStyle(.segmented)
                 .accessibilityLabel("表示方法")
 
+                Toggle("画像の中心にサイズを描画", isOn: Binding(
+                    get: { showsImageSize },
+                    set: updateImageSizeDebugDrawing
+                ))
+
                 VulpUI.AsyncImage(
                     loader: loader,
                     request: { pixelSize, scale in
                         let pointSize = pixelSize ?? CGSize(width: viewSize, height: viewSize)
-                        return try MediaImageRequest(
+                        let request = try MediaImageRequest(
                             assetHandle: asset,
                             targetSize: CGSize(
                                 width: pointSize.width * scale,
                                 height: pointSize.height * scale
-                            )
+                            ),
+                            scale: 1
+                        )
+                        guard showsImageSize else { return request }
+                        return try MediaImageRequest(
+                            assetHandle: asset,
+                            targetSize: request.targetSize,
+                            cacheIdentifier: "\(request.cacheIdentifier)|debug-size"
                         )
                     },
                     content: { image in
@@ -93,5 +101,20 @@ struct SizedImageDemoView: View {
         }
         .navigationTitle("サイズ別リサイズ")
         .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private func updateImageSizeDebugDrawing(_ isEnabled: Bool) {
+        showsImageSize = isEnabled
+        loader = Self.makeLoader(showsImageSize: isEnabled, dataCache: dataCache)
+    }
+
+    private static func makeLoader(showsImageSize: Bool, dataCache: DiskImageDataCache) -> SizedExampleLoader {
+        SizedExampleLoader(
+            downloader: DefaultImageDataDownloader(),
+            decoder: ImageIOImageDecoder(),
+            processor: ResizeImageProcessor().then(ImageSizeDebugProcessor(isEnabled: showsImageSize)),
+            cache: InMemoryImageCache(),
+            dataCache: dataCache
+        )
     }
 }
