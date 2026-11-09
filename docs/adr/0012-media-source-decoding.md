@@ -1,6 +1,6 @@
 # 0012. Decode media sources through composed decoders
 
-- Status: Accepted
+- Status: Superseded by [0017](0017-decoder-driven-source-selection.md)
 - Date: 2026-11-08
 
 ## Context

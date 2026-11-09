@@ -73,14 +73,13 @@ import Vulp
 
 typealias AppImageLoader = DefaultMediaImageLoader<
     DefaultImageDataDownloader,
-    ImageIOImageDecoder,
     ResizeImageProcessor,
     LRUImageCache
 >
 
 let imageLoader = AppImageLoader(
     downloader: DefaultImageDataDownloader(),
-    decoder: ImageIOImageDecoder(),
+    decoders: [ImageIOImageDecoder()],
     processor: ResizeImageProcessor(),
     cache: LRUImageCache(countLimit: 300),
     dataCache: DiskImageDataCache(
@@ -218,9 +217,31 @@ let image = try await loader.load(request, priority: .userInitiated)
 
 ## Customization
 
-Build a loader from the `MediaImageLoading`, `ImageDataDownloader`, `MediaImageDecoding`, `ImageProcessor`, `ImageCache`, and `ImageDataCache` protocols. Replace components in `DefaultMediaImageLoader` for custom authenticated networking or image processing.
+Build a loader from the `MediaImageLoading`, `ImageDataDownloader`, `MediaImageDecoding`, `ImageProcessor`, `ImageCache`, and `ImageDataCache` protocols. Every `MediaImageDecoding` implementation must implement `canDecode(data:)` and `canDecode(url:)` so the ordered decoder array can select the right one. Implement `canDecodeSequence(data:)` to opt into animated-image sequence loading. `DefaultMediaImageLoader` uses the first matching decoder for each operation.
 
-Implement `MediaAsset` to define a stable `uniqueKey`, an optional fallback image, a media type hint, and a way to load the source data.
+```swift
+struct CustomImageDecoder: MediaImageDecoding {
+    func canDecode(data: Data) async -> Bool {
+        data.starts(with: Data("CUSTOM".utf8))
+    }
+
+    func canDecode(url: URL) async -> Bool { false }
+
+    func deserialize(_ data: Data) async throws -> MediaImage {
+        // Replace this with the custom format's actual image conversion.
+        throw ImageDeserializationError.invalidData
+    }
+}
+
+let loader = DefaultMediaImageLoader(
+    downloader: DefaultImageDataDownloader(),
+    decoders: [CustomImageDecoder(), ImageIOImageDecoder(), AVFoundationVideoFrameDecoder()],
+    processor: ResizeImageProcessor(),
+    cache: InMemoryImageCache()
+)
+```
+
+Implement `MediaAsset` to define a stable `uniqueKey`, an optional fallback image, optional media metadata, and a way to load the source data.
 
 ## License
 

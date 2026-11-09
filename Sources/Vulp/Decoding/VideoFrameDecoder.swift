@@ -1,6 +1,10 @@
 import Foundation
 
-public protocol VideoFrameDecoding: Sendable {
+public protocol VideoFrameDecoding: MediaImageDecoding {
+    /// Returns whether this decoder can extract a frame directly from the URL.
+    @concurrent
+    func canDecode(url: URL) async -> Bool
+
     @concurrent
     func decodeFrame(
         from url: URL,
@@ -9,8 +13,25 @@ public protocol VideoFrameDecoding: Sendable {
     ) async throws -> MediaImage
 }
 
+public extension VideoFrameDecoding {
+    @concurrent
+    func deserialize(_ data: Data) async throws -> MediaImage {
+        throw MediaImageDecodingError.unsupportedSource
+    }
+
+    @concurrent
+    func decodeVideoFrame(
+        from url: URL,
+        at time: TimeInterval,
+        maximumPixelDimension: Int?
+    ) async throws -> MediaImage {
+        try await decodeFrame(from: url, at: time, maximumPixelDimension: maximumPixelDimension)
+    }
+}
+
 #if canImport(AVFoundation)
 import AVFoundation
+import UniformTypeIdentifiers
 #if canImport(UIKit)
 import UIKit
 #elseif canImport(AppKit)
@@ -20,6 +41,23 @@ import AppKit
 /// Generates a thumbnail from a video URL without first downloading the complete asset.
 public struct AVFoundationVideoFrameDecoder: VideoFrameDecoding {
     public init() {}
+
+    @concurrent
+    public func canDecode(data: Data) async -> Bool { false }
+
+    @concurrent
+    public func canDecode(url: URL) async -> Bool {
+        guard !url.pathExtension.isEmpty,
+              let type = UTType(filenameExtension: url.pathExtension.lowercased())
+        else { return true }
+
+        if type.conforms(to: .movie) || type.conforms(to: .video) || type.conforms(to: .audiovisualContent) {
+            return true
+        }
+        if type.conforms(to: .image) { return false }
+        // Unknown extensions still get one direct AVFoundation attempt.
+        return true
+    }
 
     @concurrent
     public func decodeFrame(
