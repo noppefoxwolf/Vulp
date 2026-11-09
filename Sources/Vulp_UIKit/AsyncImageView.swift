@@ -5,7 +5,7 @@ import UIKit
 /// A layer-backed image view that sizes image requests from its bounds when requested.
 @MainActor
 public final class AsyncImageView: UIView {
-    private let imageLayer = ImageDisplayLayer()
+    private let imageLayer = CALayer()
     private let sequencePlayback = ImageSequencePlayback()
     private var displayedImage: CGImage?
     private var makeImageOperation: (@MainActor @Sendable (CGSize?, CGFloat) -> ImageLoadingOperation?)?
@@ -268,11 +268,12 @@ public final class AsyncImageView: UIView {
 
     private func refreshDisplayedLayer() {
         imageLayer.frame = bounds
-        imageLayer.display(
-            displayedImage,
-            contentsScale: 1,
-            contentsGravity: contentsGravity(for: contentMode)
-        )
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        imageLayer.contentsScale = 1
+        imageLayer.contentsGravity = contentsGravity(for: contentMode)
+        imageLayer.contents = displayedImage
+        CATransaction.commit()
     }
 
     private func registerForDisplayScaleChanges() {
@@ -402,22 +403,6 @@ public final class AsyncImageView: UIView {
 private struct ImageLoadingOperation {
     let cacheIdentifier: String
     let load: @MainActor @Sendable () async throws -> CGImage
-}
-
-@MainActor
-private final class ImageDisplayLayer: CALayer {
-    func display(
-        _ cgImage: CGImage?,
-        contentsScale: CGFloat,
-        contentsGravity: CALayerContentsGravity
-    ) {
-        CATransaction.begin()
-        CATransaction.setDisableActions(true)
-        self.contentsScale = contentsScale
-        self.contentsGravity = contentsGravity
-        contents = cgImage
-        CATransaction.commit()
-    }
 }
 
 @MainActor
