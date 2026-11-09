@@ -445,7 +445,6 @@ private final class SequencePlaybackModel<Loader: MediaImageLoading> {
 
 public extension AsyncImage where Loader == DefaultMediaImageLoader<
     DefaultImageDataDownloader,
-    MediaImageDecoderSet<ImageIOImageDecoder, AVFoundationVideoFrameDecoder>,
     ResizeImageProcessor,
     InMemoryImageCache
 > {
@@ -495,7 +494,6 @@ public extension AsyncImage where Loader == DefaultMediaImageLoader<
 
 public extension AsyncImage where Loader == DefaultMediaImageLoader<
     DefaultImageDataDownloader,
-    MediaImageDecoderSet<ImageIOImageDecoder, AVFoundationVideoFrameDecoder>,
     ResizeImageProcessor,
     InMemoryImageCache
 >, Content == Image {
@@ -519,7 +517,6 @@ public extension AsyncImage where Loader == DefaultMediaImageLoader<
 
 public extension AsyncImage where Loader == DefaultMediaImageLoader<
     DefaultImageDataDownloader,
-    MediaImageDecoderSet<ImageIOImageDecoder, AVFoundationVideoFrameDecoder>,
     ResizeImageProcessor,
     InMemoryImageCache
 >, Content == Image, Placeholder == ProgressView<EmptyView, EmptyView> {

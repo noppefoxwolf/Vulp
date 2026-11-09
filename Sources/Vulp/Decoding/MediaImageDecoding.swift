@@ -1,6 +1,18 @@
 import Foundation
 
 public protocol MediaImageDecoding: Sendable {
+    /// Quickly checks whether this decoder recognizes encoded image data.
+    @concurrent
+    func canDecode(data: Data) async -> Bool
+
+    /// Quickly checks whether this decoder can handle a source directly from its URL.
+    @concurrent
+    func canDecode(url: URL) async -> Bool
+
+    /// Returns whether this decoder can inspect and load an animated image sequence.
+    @concurrent
+    func canDecodeSequence(data: Data) async -> Bool
+
     @concurrent
     func deserialize(_ data: Data) async throws -> MediaImage
 
@@ -23,11 +35,20 @@ public protocol MediaImageDecoding: Sendable {
         at time: TimeInterval,
         maximumPixelDimension: Int?
     ) async throws -> MediaImage
+
+    @concurrent
+    func frameCount(in data: Data) async throws -> Int
+
+    @concurrent
+    func frameDurations(in data: Data) async throws -> [TimeInterval]
 }
 
 public typealias ImageDeserializer = MediaImageDecoding
 
 public extension MediaImageDecoding {
+    @concurrent
+    func canDecodeSequence(data: Data) async -> Bool { false }
+
     @concurrent
     func deserialize(_ data: Data, options: ImageDecodingOptions) async throws -> MediaImage {
         switch options {
@@ -56,6 +77,16 @@ public extension MediaImageDecoding {
     ) async throws -> MediaImage {
         throw MediaImageDecodingError.unsupportedSource
     }
+
+    @concurrent
+    func frameCount(in data: Data) async throws -> Int {
+        throw MediaImageDecodingError.unsupportedSource
+    }
+
+    @concurrent
+    func frameDurations(in data: Data) async throws -> [TimeInterval] {
+        throw MediaImageDecodingError.unsupportedSource
+    }
 }
 
 public protocol MediaImageSequenceDecoding: MediaImageDecoding {
@@ -69,6 +100,11 @@ public protocol MediaImageSequenceDecoding: MediaImageDecoding {
 public typealias ImageSequenceDeserializer = MediaImageSequenceDecoding
 
 public extension MediaImageSequenceDecoding {
+    @concurrent
+    func canDecodeSequence(data: Data) async -> Bool {
+        await canDecode(data: data)
+    }
+
     @concurrent
     func frameDurations(in data: Data) async throws -> [TimeInterval] {
         Array(repeating: 0.1, count: try await frameCount(in: data))

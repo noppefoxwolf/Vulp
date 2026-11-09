@@ -4,14 +4,10 @@ import Testing
 
 @Test func mediaImageLoaderDecodesRemoteVideoURLWithoutDownloadingWholeSource() async throws {
     let videoDecoder = CountingVideoDecoder()
-    let decoder = MediaImageDecoderSet(
-        imageDecoder: ImageIOImageDecoder(),
-        videoDecoder: videoDecoder
-    )
     let downloader = CountingDownloader()
     let loader = DefaultMediaImageLoader(
         downloader: downloader,
-        decoder: decoder,
+        decoders: [videoDecoder],
         processor: ResizeImageProcessor(),
         cache: InMemoryImageCache()
     )
@@ -24,15 +20,12 @@ import Testing
     #expect(await downloader.callCount == 0)
 }
 
-@Test func mediaImageLoaderUsesUniformTypeForMovieExtensions() async throws {
+@Test func mediaImageLoaderRoutesSourcesThroughTheFirstMatchingDecoder() async throws {
     let videoDecoder = CountingVideoDecoder()
     let downloader = CountingDownloader()
     let loader = DefaultMediaImageLoader(
         downloader: downloader,
-        decoder: MediaImageDecoderSet(
-            imageDecoder: ImageIOImageDecoder(),
-            videoDecoder: videoDecoder
-        ),
+        decoders: [videoDecoder],
         processor: ResizeImageProcessor(),
         cache: InMemoryImageCache()
     )
@@ -47,15 +40,11 @@ import Testing
     #expect(downloadCount == 0)
 }
 
-@Test func mediaImageLoaderRechecksMediaTypeWhenHintConflictsWithURL() async throws {
+@Test func mediaImageLoaderLetsDecoderCapabilityOverrideMediaTypeHint() async throws {
     let videoDecoder = CountingVideoDecoder()
-    let decoder = MediaImageDecoderSet(
-        imageDecoder: ImageIOImageDecoder(),
-        videoDecoder: videoDecoder
-    )
     let loader = DefaultMediaImageLoader(
         downloader: CountingDownloader(),
-        decoder: decoder,
+        decoders: [videoDecoder],
         processor: ResizeImageProcessor(),
         cache: InMemoryImageCache()
     )
@@ -70,14 +59,11 @@ import Testing
     #expect(await videoDecoder.urls == [asset.url])
 }
 
-@Test func mediaImageLoaderFallsBackToImageDataWhenVideoProbeFindsNoVideoTrack() async throws {
+@Test func mediaImageLoaderFallsBackToImageDataWhenDirectURLDecoderDeclinesSource() async throws {
     let downloader = CountingDownloader()
     let loader = DefaultMediaImageLoader(
         downloader: downloader,
-        decoder: MediaImageDecoderSet(
-            imageDecoder: ImageIOImageDecoder(),
-            videoDecoder: UnsupportedVideoDecoder()
-        ),
+        decoders: [UnsupportedVideoDecoder(), ImageIOImageDecoder()],
         processor: ResizeImageProcessor(),
         cache: InMemoryImageCache()
     )
@@ -98,10 +84,7 @@ import Testing
     let videoDecoder = CountingVideoDecoder()
     let loader = DefaultMediaImageLoader(
         downloader: CountingDownloader(),
-        decoder: MediaImageDecoderSet(
-            imageDecoder: ImageIOImageDecoder(),
-            videoDecoder: videoDecoder
-        ),
+        decoders: [videoDecoder],
         processor: ResizeImageProcessor(),
         cache: InMemoryImageCache()
     )
@@ -123,10 +106,7 @@ import Testing
     let downloader = CountingDownloader()
     let loader = DefaultMediaImageLoader(
         downloader: downloader,
-        decoder: MediaImageDecoderSet(
-            imageDecoder: ImageIOImageDecoder(),
-            videoDecoder: CountingVideoDecoder()
-        ),
+        decoders: [CountingVideoDecoder()],
         processor: ResizeImageProcessor(),
         cache: InMemoryImageCache()
     )
@@ -142,6 +122,9 @@ import Testing
 private actor CountingVideoDecoder: VideoFrameDecoding {
     private(set) var urls: [URL] = []
 
+    func canDecode(data: Data) async -> Bool { false }
+    func canDecode(url: URL) async -> Bool { true }
+
     func decodeFrame(
         from url: URL,
         at time: TimeInterval,
@@ -153,6 +136,9 @@ private actor CountingVideoDecoder: VideoFrameDecoding {
 }
 
 private struct UnsupportedVideoDecoder: VideoFrameDecoding {
+    func canDecode(data: Data) async -> Bool { false }
+    func canDecode(url: URL) async -> Bool { true }
+
     func decodeFrame(
         from url: URL,
         at time: TimeInterval,
