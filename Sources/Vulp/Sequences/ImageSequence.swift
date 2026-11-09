@@ -20,7 +20,8 @@ public struct ImageSequence: Sendable {
     }
 
     /// Selects the supported display rate and source frames for the requested fidelity.
-    public func playbackPlan(levelOfIntegrity: Double = 1) -> ImageSequencePlaybackPlan {
+    @concurrent
+    public func playbackPlan(levelOfIntegrity: Double = 1) async -> ImageSequencePlaybackPlan {
         ImageSequencePlaybackPlan(frameDurations: frameDurations, levelOfIntegrity: levelOfIntegrity)
     }
 

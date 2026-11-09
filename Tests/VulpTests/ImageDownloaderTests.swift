@@ -28,7 +28,7 @@ private struct OpaqueDataAssetHandle: ImageAssetHandle {
 }
 
 @Test func dataAssetReturnsItsData() async throws {
-    let asset = DataImageAsset(data: TestImageData.png)
+    let asset = await DataImageAsset(data: TestImageData.png)
     let result = try await asset.loadData(using: DefaultImageDataDownloader())
 
     #expect(result == TestImageData.png)
