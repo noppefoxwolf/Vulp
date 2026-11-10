@@ -23,6 +23,10 @@ let package = Package(
             targets: ["Vulp_UIKit"]
         ),
         .library(
+            name: "Vulp_SwiftUI_Vulp_UIKit",
+            targets: ["Vulp_SwiftUI_Vulp_UIKit"]
+        ),
+        .library(
             name: "Vulp_AppKit",
             targets: ["Vulp_AppKit"]
         ),
@@ -55,6 +59,14 @@ let package = Package(
             ],
         ),
         .target(
+            name: "Vulp_SwiftUI_Vulp_UIKit",
+            dependencies: ["Vulp_UIKit"],
+            swiftSettings: [
+                .defaultIsolation(MainActor.self),
+                .enableUpcomingFeature("ApproachableConcurrency"),
+            ],
+        ),
+        .target(
             name: "Vulp_AppKit",
             dependencies: ["Vulp"],
             swiftSettings: [
@@ -64,7 +76,13 @@ let package = Package(
         ),
         .target(
             name: "VulpUI",
-            dependencies: ["Vulp", "Vulp_SwiftUI", "Vulp_UIKit", "Vulp_AppKit"],
+            dependencies: [
+                "Vulp",
+                "Vulp_SwiftUI",
+                "Vulp_UIKit",
+                "Vulp_SwiftUI_Vulp_UIKit",
+                "Vulp_AppKit",
+            ],
             swiftSettings: [
                 .defaultIsolation(MainActor.self),
                 .enableUpcomingFeature("ApproachableConcurrency"),

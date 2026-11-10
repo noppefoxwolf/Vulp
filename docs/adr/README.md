@@ -31,3 +31,4 @@ This directory stores decisions that affect Vulp's architecture and public API.
 - [0018. Select sequence decoders from the runtime decoder list](0018-runtime-sequence-decoder-selection.md)
 - [0019. Present UIKit images with CALayer](0019-use-calayer-for-uikit-image-presentation.md)
 - [0020. Use CGImage as the decoded MediaImage type](0020-use-cgimage-as-media-image.md)
+- [0021. Add a SwiftUI wrapper for the UIKit image view](0021-add-swiftui-wrapper-for-uikit-view.md)

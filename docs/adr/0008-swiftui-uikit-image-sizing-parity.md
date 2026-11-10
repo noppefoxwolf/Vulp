@@ -1,6 +1,6 @@
 # 0008. Keep SwiftUI and UIKit image sizing behavior aligned
 
-- Status: Accepted
+- Status: Superseded in part by [ADR 0021](0021-add-swiftui-wrapper-for-uikit-view.md)
 - Date: 2026-11-08
 
 ## Context
