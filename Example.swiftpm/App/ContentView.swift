@@ -19,6 +19,10 @@ struct ContentView: View {
                         .navigationBarTitleDisplayMode(.inline)
                 }
 
+                NavigationLink("UIKit AsyncImage グリッド") {
+                    UIKitAsyncImageGridView()
+                }
+
                 NavigationLink("ビューサイズに応じた画像処理") {
                     SizedImageDemoView(dataCache: dataCache)
                 }
