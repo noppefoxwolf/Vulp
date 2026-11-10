@@ -214,7 +214,6 @@ public final class AsyncImageView: UIView {
 
     public override func layoutSubviews() {
         super.layoutSubviews()
-        imageLayer.frame = bounds
         refreshDisplayedLayer()
         updateImageIfNeeded()
         if restartImageLoadOnAttach != nil {
@@ -282,9 +281,9 @@ public final class AsyncImageView: UIView {
     }
 
     private func refreshDisplayedLayer() {
-        imageLayer.frame = bounds
         CATransaction.begin()
         CATransaction.setDisableActions(true)
+        imageLayer.frame = bounds
         imageLayer.contentsScale = 1
         imageLayer.contentsGravity = contentsGravity(for: contentMode)
         imageLayer.contents = displayedImage
