@@ -261,9 +261,16 @@ public final class AsyncImageView: UIView {
     }
 
     fileprivate func setDisplayedImage(_ image: CGImage?) {
+        let previousIntrinsicSize = intrinsicContentSize
         displayedImage = image
         refreshDisplayedLayer()
-        invalidateIntrinsicContentSize()
+        if Self.intrinsicContentSizeDidChange(from: previousIntrinsicSize, to: intrinsicContentSize) {
+            invalidateIntrinsicContentSize()
+        }
+    }
+
+    static func intrinsicContentSizeDidChange(from previousSize: CGSize, to updatedSize: CGSize) -> Bool {
+        previousSize != updatedSize
     }
 
     private func refreshDisplayedLayer() {

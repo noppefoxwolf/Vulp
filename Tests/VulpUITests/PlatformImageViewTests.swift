@@ -31,6 +31,20 @@ import AppKit
 
 #if canImport(UIKit)
 import UIKit
+@testable import Vulp_UIKit
+
+@MainActor
+@Test func uiKitIntrinsicSizeInvalidationOnlyWhenSizeChanges() {
+    let noIntrinsicMetric = CGSize(
+        width: UIView.noIntrinsicMetric,
+        height: UIView.noIntrinsicMetric
+    )
+
+    #expect(!AsyncImageView.intrinsicContentSizeDidChange(from: noIntrinsicMetric, to: noIntrinsicMetric))
+    #expect(!AsyncImageView.intrinsicContentSizeDidChange(from: CGSize(width: 40, height: 30), to: CGSize(width: 40, height: 30)))
+    #expect(AsyncImageView.intrinsicContentSizeDidChange(from: CGSize(width: 40, height: 30), to: CGSize(width: 41, height: 30)))
+    #expect(AsyncImageView.intrinsicContentSizeDidChange(from: CGSize(width: 40, height: 30), to: noIntrinsicMetric))
+}
 
 @MainActor
 @Test func uiKitAsyncImageViewDisplaysAssignedImage() async throws {
