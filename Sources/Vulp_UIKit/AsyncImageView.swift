@@ -5,7 +5,6 @@ import UIKit
 /// A layer-backed image view that sizes image requests from its bounds when requested.
 @MainActor
 public final class AsyncImageView: UIView {
-    private let imageLayer = CALayer()
     private let sequencePlayback = ImageSequencePlayback()
     private var displayedImage: CGImage?
     private var makeImageOperation: (@MainActor @Sendable (CGSize?, CGFloat) -> ImageLoadingOperation?)?
@@ -14,6 +13,7 @@ public final class AsyncImageView: UIView {
     private var loadedCacheIdentifier: String?
     private var loadedStaticSequenceIdentifier: String?
     private var currentSequenceIdentifier: String?
+    private var lastRequestLayoutKey: RequestLayoutKey?
     private var imageLoadTask: Task<Void, Never>?
     private var imageFailureHandler: (@MainActor @Sendable (any Error) -> Void)?
 
@@ -22,6 +22,7 @@ public final class AsyncImageView: UIView {
         didSet {
             guard sizingMode != oldValue else { return }
             currentCacheIdentifier = nil
+            lastRequestLayoutKey = nil
             invalidateIntrinsicContentSize()
             setNeedsLayout()
             updateImageIfNeeded()
@@ -47,7 +48,7 @@ public final class AsyncImageView: UIView {
     public override var contentMode: UIView.ContentMode {
         didSet {
             guard contentMode != oldValue else { return }
-            setNeedsLayout()
+            updateLayerGravity()
         }
     }
 
@@ -171,6 +172,7 @@ public final class AsyncImageView: UIView {
         restartImageLoadOnAttach = nil
         sequencePlayback.stop()
         currentCacheIdentifier = nil
+        lastRequestLayoutKey = nil
         loadedStaticSequenceIdentifier = nil
         currentSequenceIdentifier = nil
         imageFailureHandler = onFailure
@@ -201,20 +203,21 @@ public final class AsyncImageView: UIView {
     public override init(frame: CGRect) {
         super.init(frame: frame)
         registerForDisplayScaleChanges()
-        layer.addSublayer(imageLayer)
+        layer.contentsScale = 1
         contentMode = .scaleAspectFit
+        updateLayerGravity()
     }
 
     public required init?(coder: NSCoder) {
         super.init(coder: coder)
         registerForDisplayScaleChanges()
-        layer.addSublayer(imageLayer)
+        layer.contentsScale = 1
         contentMode = .scaleAspectFit
+        updateLayerGravity()
     }
 
     public override func layoutSubviews() {
         super.layoutSubviews()
-        refreshDisplayedLayer()
         updateImageIfNeeded()
         if restartImageLoadOnAttach != nil {
             restartImageLoadIfNeeded()
@@ -269,8 +272,11 @@ public final class AsyncImageView: UIView {
 
     fileprivate func setDisplayedImage(_ image: CGImage?) {
         let previousIntrinsicSize = intrinsicContentSize
+        let contentsChanged = displayedImage !== image
         displayedImage = image
-        refreshDisplayedLayer()
+        if contentsChanged {
+            updateDisplayedContents()
+        }
         if Self.intrinsicContentSizeDidChange(from: previousIntrinsicSize, to: intrinsicContentSize) {
             invalidateIntrinsicContentSize()
         }
@@ -280,13 +286,19 @@ public final class AsyncImageView: UIView {
         previousSize != updatedSize
     }
 
-    private func refreshDisplayedLayer() {
+    private func updateDisplayedContents() {
         CATransaction.begin()
         CATransaction.setDisableActions(true)
-        imageLayer.frame = bounds
-        imageLayer.contentsScale = 1
-        imageLayer.contentsGravity = contentsGravity(for: contentMode)
-        imageLayer.contents = displayedImage
+        layer.contents = displayedImage
+        CATransaction.commit()
+    }
+
+    private func updateLayerGravity() {
+        let gravity = contentsGravity(for: contentMode)
+        guard layer.contentsGravity != gravity else { return }
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        layer.contentsGravity = gravity
         CATransaction.commit()
     }
 
@@ -313,7 +325,11 @@ public final class AsyncImageView: UIView {
             scale = 1
         }
 
+        let layoutKey = RequestLayoutKey(targetSize: targetSize, scale: scale)
+        guard layoutKey != lastRequestLayoutKey else { return }
+
         guard let operation = makeImageOperation(targetSize, scale) else { return }
+        lastRequestLayoutKey = layoutKey
         guard operation.cacheIdentifier != currentCacheIdentifier else { return }
 
         currentCacheIdentifier = operation.cacheIdentifier
@@ -346,6 +362,11 @@ public final class AsyncImageView: UIView {
                 self.imageFailureHandler?(error)
             }
         }
+    }
+
+    private struct RequestLayoutKey: Equatable {
+        let targetSize: CGSize?
+        let scale: CGFloat
     }
 
     private func startImageLoad(
@@ -428,6 +449,7 @@ public final class AsyncImageView: UIView {
         imageLoadTask?.cancel()
         imageLoadTask = nil
         currentCacheIdentifier = nil
+        lastRequestLayoutKey = nil
         currentSequenceIdentifier = nil
         sequencePlayback.stop()
     }
