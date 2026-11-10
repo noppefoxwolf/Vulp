@@ -7,7 +7,7 @@ import UIKit
 ///
 /// The wrapped view sizes requests from its laid-out bounds by default and plays
 /// animated image sequences using UIKit's display-synchronized playback.
-public struct UIKitAsyncImage: UIViewRepresentable {
+public struct AsyncImage: UIViewRepresentable {
     public var url: URL
     public var contentMode: UIView.ContentMode
     public var sizingMode: ImageViewSizingMode
@@ -35,17 +35,17 @@ public struct UIKitAsyncImage: UIViewRepresentable {
         Coordinator()
     }
 
-    public func makeUIView(context: Context) -> AsyncImageView {
+    public func makeUIView(context: Context) -> Vulp_UIKit.AsyncImageView {
         let view = AsyncImageView()
         update(view, coordinator: context.coordinator)
         return view
     }
 
-    public func updateUIView(_ view: AsyncImageView, context: Context) {
+    public func updateUIView(_ view: Vulp_UIKit.AsyncImageView, context: Context) {
         update(view, coordinator: context.coordinator)
     }
 
-    private func update(_ view: AsyncImageView, coordinator: Coordinator) {
+    private func update(_ view: Vulp_UIKit.AsyncImageView, coordinator: Coordinator) {
         coordinator.onFailure = onFailure
         view.contentMode = contentMode
         view.sizingMode = sizingMode

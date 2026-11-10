@@ -55,7 +55,7 @@ struct SizedImageDemoView: View {
                     set: updateImageSizeDebugDrawing
                 ))
 
-                VulpUI.AsyncImage(
+                VulpUI.AsyncImageTimelineView(
                     loader: loader,
                     request: { pixelSize, scale in
                         let pointSize = pixelSize ?? CGSize(width: viewSize, height: viewSize)
