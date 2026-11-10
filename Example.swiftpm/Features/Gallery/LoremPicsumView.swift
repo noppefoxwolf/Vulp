@@ -40,7 +40,7 @@ struct LoremPicsumView: View {
                     Text("アニメーションGIF")
                         .font(.headline)
 
-                    VulpUI.AsyncImage(
+                    VulpUI.AsyncImageTimelineView(
                         asset: RemoteMediaAsset(
                             url: URL(string: "https://upload.wikimedia.org/wikipedia/commons/2/2c/Rotating_earth_%28large%29.gif")!,
                             uniqueKey: "example-rotating-earth-gif"
@@ -128,7 +128,7 @@ private struct PicsumGridCell<Loader: MediaImageLoading>: View {
         .aspectRatio(1, contentMode: .fit)
         .background(.quaternary, in: RoundedRectangle(cornerRadius: 12))
         .overlay {
-            VulpUI.AsyncImage(request: request, loader: loader, onFailure: { error in
+            VulpUI.AsyncImageTimelineView(request: request, loader: loader, onFailure: { error in
                 didFail = true
                 onFailure(error)
             }, content: { image in

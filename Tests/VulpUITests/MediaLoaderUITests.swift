@@ -142,13 +142,13 @@ private struct SuccessfulLoadCountingImageLoader: MediaImageSequenceLoading {
 }
 #endif
 
-@Test @MainActor func umbrellaProductExposesSwiftUIAsyncImage() throws {
+@Test @MainActor func umbrellaProductExposesSwiftUIAsyncImageTimelineView() throws {
     let request = try ImageLoadRequest(
         assetHandle: DataImageAsset(data: Data(), uniqueKey: "swiftui-view"),
         targetSize: .zero
     )
 
-    let view = VulpUI.AsyncImage(request: request, loader: TestImageLoader()) {
+    let view = VulpUI.AsyncImageTimelineView(request: request, loader: TestImageLoader()) {
         ProgressView()
     }
 
@@ -156,7 +156,7 @@ private struct SuccessfulLoadCountingImageLoader: MediaImageSequenceLoading {
 }
 
 @Test @MainActor func imageLoaderViewBuildsARequestFromViewSizeAndScale() {
-    let view = VulpUI.AsyncImage(
+    let view = VulpUI.AsyncImageTimelineView(
         loader: TestImageLoader(),
         request: { targetSize, scale in
             try ImageLoadRequest(
@@ -183,7 +183,7 @@ private struct SuccessfulLoadCountingImageLoader: MediaImageSequenceLoading {
         cache: InMemoryImageCache()
     )
     let asset = DataImageAsset(data: Data([0]), uniqueKey: "sequence-view")
-    let view = VulpUI.AsyncImage(
+    let view = VulpUI.AsyncImageTimelineView(
         asset: asset,
         loader: loader,
         targetSize: CGSize(width: 16, height: 16),
@@ -241,7 +241,7 @@ import UIKit
     let loader = SequenceCancellationTrackingImageLoader(probe: probe)
     let asset = DataImageAsset(data: AnimatedGIFFixture.data, uniqueKey: "swiftui-sequence-cancel")
     let hostingController = UIHostingController(
-        rootView: VulpUI.AsyncImage(
+        rootView: VulpUI.AsyncImageTimelineView(
             asset: asset,
             loader: loader,
             targetSize: CGSize(width: 16, height: 16),
@@ -365,7 +365,7 @@ import UIKit
         targetSize: CGSize(width: 16, height: 16)
     )
     let hostingController = UIHostingController(
-        rootView: VulpUI.AsyncImage(
+        rootView: VulpUI.AsyncImageTimelineView(
             request: request,
             loader: loader,
             content: { $0.resizable() }
@@ -400,7 +400,7 @@ import UIKit
         uniqueKey: "swiftui-static-sequence-reappear"
     )
     let hostingController = UIHostingController(
-        rootView: VulpUI.AsyncImage(
+        rootView: VulpUI.AsyncImageTimelineView(
             asset: asset,
             loader: loader,
             targetSize: CGSize(width: 16, height: 16),

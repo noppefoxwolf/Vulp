@@ -3,7 +3,7 @@ import Observation
 @_exported import Vulp
 
 /// Loads and displays an image, playing it when the loaded source contains multiple frames.
-public struct AsyncImage<Loader: MediaImageLoading, Content: View, Placeholder: View>: View {
+public struct AsyncImageTimelineView<Loader: MediaImageLoading, Content: View, Placeholder: View>: View {
     private let taskIdentifier: String
     private let levelOfIntegrity: Double
     private let loadImages: @MainActor @Sendable () async throws -> [MediaImage]
@@ -298,7 +298,7 @@ public struct AsyncImage<Loader: MediaImageLoading, Content: View, Placeholder: 
 }
 
 /// Convenience initializers that pass the loaded image through without modifiers.
-public extension AsyncImage where Content == Image {
+public extension AsyncImageTimelineView where Content == Image {
     init<Request: MediaImageRequestProtocol>(
         request: Request,
         loader: Loader,
@@ -466,7 +466,7 @@ private final class SequencePlaybackModel<Loader: MediaImageLoading> {
     }
 }
 
-public extension AsyncImage where Loader == DefaultMediaImageLoader<
+public extension AsyncImageTimelineView where Loader == DefaultMediaImageLoader<
     DefaultImageDataDownloader,
     ResizeImageProcessor,
     InMemoryImageCache
@@ -515,7 +515,7 @@ public extension AsyncImage where Loader == DefaultMediaImageLoader<
     }
 }
 
-public extension AsyncImage where Loader == DefaultMediaImageLoader<
+public extension AsyncImageTimelineView where Loader == DefaultMediaImageLoader<
     DefaultImageDataDownloader,
     ResizeImageProcessor,
     InMemoryImageCache
@@ -538,7 +538,7 @@ public extension AsyncImage where Loader == DefaultMediaImageLoader<
     }
 }
 
-public extension AsyncImage where Loader == DefaultMediaImageLoader<
+public extension AsyncImageTimelineView where Loader == DefaultMediaImageLoader<
     DefaultImageDataDownloader,
     ResizeImageProcessor,
     InMemoryImageCache
