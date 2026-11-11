@@ -508,11 +508,6 @@ private final class ImageSequencePlayback {
             self?.updateLinkDidFire(updateInfo)
         }
         updateLink.requiresContinuousUpdates = true
-        updateLink.preferredFrameRateRange = CAFrameRateRange(
-            minimum: 1,
-            maximum: Float(1 / frameInterval),
-            preferred: Float(1 / frameInterval)
-        )
         updateLink.isEnabled = true
         self.updateLink = updateLink
     }
