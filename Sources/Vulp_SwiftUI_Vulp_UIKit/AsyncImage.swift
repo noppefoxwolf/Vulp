@@ -52,18 +52,40 @@ public struct AsyncImage: UIViewRepresentable {
     ) -> CGSize? {
         switch sizingMode {
         case .viewBounds:
-            guard let width = proposal.width, let height = proposal.height else {
+            guard let width = proposal.width, width.isFinite,
+                  let height = proposal.height, height.isFinite
+            else {
                 return nil
             }
             return CGSize(width: width, height: height)
         case .explicitPixels:
-            let size = uiView.intrinsicContentSize
-            guard size.width != UIView.noIntrinsicMetric,
-                  size.height != UIView.noIntrinsicMetric
+            let intrinsicSize = uiView.intrinsicContentSize
+            guard intrinsicSize.width != UIView.noIntrinsicMetric,
+                  intrinsicSize.height != UIView.noIntrinsicMetric,
+                  intrinsicSize.width > 0,
+                  intrinsicSize.height > 0
             else {
                 return nil
             }
-            return size
+
+            let width = proposal.width.flatMap { $0.isFinite ? $0 : nil }
+            let height = proposal.height.flatMap { $0.isFinite ? $0 : nil }
+            switch (width, height) {
+            case let (width?, height?):
+                return CGSize(width: width, height: height)
+            case let (width?, nil):
+                return CGSize(
+                    width: width,
+                    height: width * intrinsicSize.height / intrinsicSize.width
+                )
+            case let (nil, height?):
+                return CGSize(
+                    width: height * intrinsicSize.width / intrinsicSize.height,
+                    height: height
+                )
+            case (nil, nil):
+                return intrinsicSize
+            }
         }
     }
 

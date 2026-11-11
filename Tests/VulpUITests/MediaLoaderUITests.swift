@@ -258,6 +258,41 @@ import UIKit
     }
 }
 
+@Test @MainActor func swiftUIExplicitPixelAsyncImageRespectsFiniteProposals() throws {
+    #expect(try measuredExplicitPixelAsyncImageSize(width: 310, height: 175) == CGSize(width: 310, height: 175))
+    #expect(try measuredExplicitPixelAsyncImageSize(width: 310, height: nil) == CGSize(width: 310, height: 155))
+    #expect(try measuredExplicitPixelAsyncImageSize(width: nil, height: 175) == CGSize(width: 350, height: 175))
+    #expect(try measuredExplicitPixelAsyncImageSize(width: nil, height: nil) == CGSize(width: 40, height: 20))
+}
+
+@MainActor
+private func measuredExplicitPixelAsyncImageSize(width: CGFloat?, height: CGFloat?) throws -> CGSize {
+    let hostingController = UIHostingController(
+        rootView: VulpUI.AsyncImage(
+            url: URL(string: "about:blank")!,
+            sizingMode: .explicitPixels
+        )
+        .frame(width: width, height: height)
+    )
+    let windowSize = CGSize(width: width ?? 320, height: height ?? 240)
+    let window = UIWindow(frame: CGRect(origin: .zero, size: windowSize))
+    hostingController.view.frame = window.bounds
+    window.addSubview(hostingController.view)
+    hostingController.view.setNeedsLayout()
+    hostingController.view.layoutIfNeeded()
+
+    let imageView = try #require(findAsyncImageView(in: hostingController.view))
+    imageView.image = UIGraphicsImageRenderer(size: CGSize(width: 40, height: 20)).image { context in
+        context.cgContext.setFillColor(UIColor.black.cgColor)
+        context.cgContext.fill(CGRect(origin: .zero, size: CGSize(width: 40, height: 20)))
+    }.cgImage
+
+    return hostingController.sizeThatFits(in: CGSize(
+        width: width ?? .infinity,
+        height: height ?? .infinity
+    ))
+}
+
 @MainActor
 private func findAsyncImageView(in view: UIView) -> AsyncImageView? {
     if let imageView = view as? AsyncImageView {
