@@ -45,6 +45,28 @@ public struct AsyncImage: UIViewRepresentable {
         update(view, coordinator: context.coordinator)
     }
 
+    public func sizeThatFits(
+        _ proposal: ProposedViewSize,
+        uiView: Vulp_UIKit.AsyncImageView,
+        context: Context
+    ) -> CGSize? {
+        switch sizingMode {
+        case .viewBounds:
+            guard let width = proposal.width, let height = proposal.height else {
+                return nil
+            }
+            return CGSize(width: width, height: height)
+        case .explicitPixels:
+            let size = uiView.intrinsicContentSize
+            guard size.width != UIView.noIntrinsicMetric,
+                  size.height != UIView.noIntrinsicMetric
+            else {
+                return nil
+            }
+            return size
+        }
+    }
+
     private func update(_ view: Vulp_UIKit.AsyncImageView, coordinator: Coordinator) {
         coordinator.onCompletion = onCompletion
         view.contentMode = contentMode
