@@ -92,6 +92,44 @@ import Testing
     #expect(await downloader.callCount == 1)
 }
 
+@Test func imagePrefetcherStartsEachURLOnceAcrossBatches() async throws {
+    let downloader = CountingDownloader(delay: .milliseconds(80))
+    let loader = DefaultImageLoader(
+        downloader: downloader,
+        deserializer: ImageIOImageDeserializer(),
+        processor: ResizeImageProcessor(),
+        cache: InMemoryImageCache()
+    )
+    let prefetcher = MediaImagePrefetcher(loader: loader)
+    let firstURL = URL(string: "https://example.com/batch-first.png")!
+    let secondURL = URL(string: "https://example.com/batch-second.png")!
+
+    await prefetcher.startPrefetching(with: [firstURL, secondURL])
+    await prefetcher.startPrefetching(with: [firstURL])
+    try await Task.sleep(for: .milliseconds(150))
+
+    #expect(await downloader.callCount == 2)
+}
+
+@Test func imagePrefetcherCancelsURLsThatLeaveThePrefetchWindow() async throws {
+    let downloader = CountingDownloader(delay: .seconds(2))
+    let loader = DefaultImageLoader(
+        downloader: downloader,
+        deserializer: ImageIOImageDeserializer(),
+        processor: ResizeImageProcessor(),
+        cache: InMemoryImageCache()
+    )
+    let prefetcher = MediaImagePrefetcher(loader: loader)
+    let url = URL(string: "https://example.com/batch-cancel.png")!
+
+    await prefetcher.startPrefetching(with: [url])
+    try await Task.sleep(for: .milliseconds(50))
+    await prefetcher.stopPrefetching(with: [url])
+    try await Task.sleep(for: .milliseconds(50))
+
+    #expect(await downloader.cancellationCount == 1)
+}
+
 @Test func imageLoadAcceptsExplicitTaskPriority() async throws {
     let downloader = CountingDownloader()
     let loader = DefaultImageLoader(
