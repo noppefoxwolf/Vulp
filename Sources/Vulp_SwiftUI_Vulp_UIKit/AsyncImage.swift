@@ -13,7 +13,7 @@ public struct AsyncImage: UIViewRepresentable {
     public var sizingMode: ImageViewSizingMode
     public var levelOfIntegrity: Double
     public var prefetchCount: Int
-    public var onFailure: (@MainActor @Sendable (any Error) -> Void)?
+    public var onCompletion: (@MainActor @Sendable (Result<CGImage, any Error>) -> Void)?
 
     public init(
         url: URL,
@@ -21,14 +21,14 @@ public struct AsyncImage: UIViewRepresentable {
         sizingMode: ImageViewSizingMode = .viewBounds,
         levelOfIntegrity: Double = 1,
         prefetchCount: Int = 3,
-        onFailure: (@MainActor @Sendable (any Error) -> Void)? = nil
+        onCompletion: (@MainActor @Sendable (Result<CGImage, any Error>) -> Void)? = nil
     ) {
         self.url = url
         self.contentMode = contentMode
         self.sizingMode = sizingMode
         self.levelOfIntegrity = levelOfIntegrity
         self.prefetchCount = prefetchCount
-        self.onFailure = onFailure
+        self.onCompletion = onCompletion
     }
 
     public func makeCoordinator() -> Coordinator {
@@ -46,7 +46,7 @@ public struct AsyncImage: UIViewRepresentable {
     }
 
     private func update(_ view: Vulp_UIKit.AsyncImageView, coordinator: Coordinator) {
-        coordinator.onFailure = onFailure
+        coordinator.onCompletion = onCompletion
         view.contentMode = contentMode
         view.sizingMode = sizingMode
 
@@ -64,8 +64,8 @@ public struct AsyncImage: UIViewRepresentable {
             url: url,
             levelOfIntegrity: levelOfIntegrity,
             prefetchCount: prefetchCount
-        ) { [weak coordinator] error in
-            coordinator?.onFailure?(error)
+        ) { [weak coordinator] result in
+            coordinator?.onCompletion?(result)
         }
     }
 
@@ -74,7 +74,7 @@ public struct AsyncImage: UIViewRepresentable {
         fileprivate var url: URL?
         fileprivate var levelOfIntegrity: Double?
         fileprivate var prefetchCount: Int?
-        fileprivate var onFailure: (@MainActor @Sendable (any Error) -> Void)?
+        fileprivate var onCompletion: (@MainActor @Sendable (Result<CGImage, any Error>) -> Void)?
     }
 }
 #endif

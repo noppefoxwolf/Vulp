@@ -15,7 +15,7 @@ public final class AsyncImageView: UIView {
     private var currentSequenceIdentifier: String?
     private var lastRequestLayoutKey: RequestLayoutKey?
     private var imageLoadTask: Task<Void, Never>?
-    private var imageFailureHandler: (@MainActor @Sendable (any Error) -> Void)?
+    private var imageCompletionHandler: (@MainActor @Sendable (Result<CGImage, any Error>) -> Void)?
 
     /// Controls request-builder loads and intrinsic sizing; sequence loads use their explicit `targetSize` argument.
     public var sizingMode: ImageViewSizingMode = .viewBounds {
@@ -65,7 +65,7 @@ public final class AsyncImageView: UIView {
         url: URL,
         levelOfIntegrity: Double = 1,
         prefetchCount: Int = 3,
-        onFailure: (@MainActor @Sendable (any Error) -> Void)? = nil
+        onCompletion: (@MainActor @Sendable (Result<CGImage, any Error>) -> Void)? = nil
     ) {
         imageLoadTask?.cancel()
         imageLoadTask = nil
@@ -80,18 +80,18 @@ public final class AsyncImageView: UIView {
                 asset: asset,
                 levelOfIntegrity: levelOfIntegrity,
                 prefetchCount: prefetchCount,
-                onFailure: onFailure
+                onCompletion: onCompletion
             )
         }
         sequencePlayback.stop()
-        imageFailureHandler = onFailure
+        imageCompletionHandler = onCompletion
         setDisplayedImage(nil)
         if window != nil {
             startImageLoad(
                 asset: asset,
                 levelOfIntegrity: levelOfIntegrity,
                 prefetchCount: prefetchCount,
-                onFailure: onFailure
+                onCompletion: onCompletion
             )
         }
     }
@@ -153,12 +153,12 @@ public final class AsyncImageView: UIView {
     /// Loads a request at this view's point bounds and display scale, updating when its cache tier changes.
     public func loadImage<Request: MediaImageRequestProtocol>(
         request: @escaping @MainActor @Sendable (CGSize?) throws -> Request,
-        onFailure: (@MainActor @Sendable (any Error) -> Void)? = nil
+        onCompletion: (@MainActor @Sendable (Result<CGImage, any Error>) -> Void)? = nil
     ) {
         loadImage(
             using: MediaImageLoader.default,
             request: { targetSize, _ in try request(targetSize) },
-            onFailure: onFailure
+            onCompletion: onCompletion
         )
     }
 
@@ -166,7 +166,7 @@ public final class AsyncImageView: UIView {
     public func loadImage<Request: MediaImageRequestProtocol, Loader: MediaImageLoading>(
         using loader: Loader,
         request: @escaping @MainActor @Sendable (CGSize?, CGFloat) throws -> Request,
-        onFailure: (@MainActor @Sendable (any Error) -> Void)? = nil
+        onCompletion: (@MainActor @Sendable (Result<CGImage, any Error>) -> Void)? = nil
     ) {
         imageLoadTask?.cancel()
         restartImageLoadOnAttach = nil
@@ -175,7 +175,7 @@ public final class AsyncImageView: UIView {
         lastRequestLayoutKey = nil
         loadedStaticSequenceIdentifier = nil
         currentSequenceIdentifier = nil
-        imageFailureHandler = onFailure
+        imageCompletionHandler = onCompletion
         makeImageOperation = { targetSize, scale in
             do {
                 let imageRequest = try request(targetSize, scale)
@@ -351,6 +351,7 @@ public final class AsyncImageView: UIView {
                 }
                 self.loadedCacheIdentifier = operation.cacheIdentifier
                 self.setDisplayedImage(image)
+                self.imageCompletionHandler?(.success(image))
             } catch is CancellationError {
                 return
             } catch {
@@ -359,7 +360,7 @@ public final class AsyncImageView: UIView {
                 else {
                     return
                 }
-                self.imageFailureHandler?(error)
+                self.imageCompletionHandler?(.failure(error))
             }
         }
     }
@@ -373,7 +374,7 @@ public final class AsyncImageView: UIView {
         asset: any MediaAsset,
         levelOfIntegrity: Double,
         prefetchCount: Int,
-        onFailure: (@MainActor @Sendable (any Error) -> Void)?
+        onCompletion: (@MainActor @Sendable (Result<CGImage, any Error>) -> Void)?
     ) {
         guard window != nil else { return }
 
@@ -429,6 +430,7 @@ public final class AsyncImageView: UIView {
                     frameInterval: playbackPlan.frameRate.frameDuration,
                     view: self
                 )
+                onCompletion?(.success(firstFrame))
                 self.imageLoadTask = nil
             } catch is CancellationError {
                 return
@@ -440,7 +442,7 @@ public final class AsyncImageView: UIView {
                 }
                 self.currentSequenceIdentifier = nil
                 self.imageLoadTask = nil
-                onFailure?(error)
+                onCompletion?(.failure(error))
             }
         }
     }
