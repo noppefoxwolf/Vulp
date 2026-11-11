@@ -53,7 +53,14 @@ private struct UIKitAsyncImageGridCell: View {
                 VulpUI.AsyncImage(
                     url: url,
                     contentMode: .scaleAspectFill,
-                    onFailure: { _ in didFail = true }
+                    onCompletion: { result in
+                        switch result {
+                        case .success:
+                            break
+                        case .failure:
+                            didFail = true
+                        }
+                    }
                 )
             }
             .overlay {
