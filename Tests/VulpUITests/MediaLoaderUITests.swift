@@ -236,6 +236,41 @@ private enum AnimatedGIFFixture {
 #if canImport(UIKit)
 import UIKit
 
+@Test @MainActor func swiftUIAsyncImageUsesProposedViewBounds() {
+    let expectedSizes = [
+        CGSize(width: 310, height: 175),
+        CGSize(width: 310, height: 413),
+    ]
+
+    for expectedSize in expectedSizes {
+        let hostingController = UIHostingController(
+            rootView: VulpUI.AsyncImage(url: URL(string: "about:blank")!)
+                .frame(width: expectedSize.width, height: expectedSize.height)
+        )
+        let window = UIWindow(frame: CGRect(origin: .zero, size: expectedSize))
+        hostingController.view.frame = window.bounds
+        window.addSubview(hostingController.view)
+        hostingController.view.setNeedsLayout()
+        hostingController.view.layoutIfNeeded()
+
+        let imageView = findAsyncImageView(in: hostingController.view)
+        #expect(imageView?.bounds.size == expectedSize)
+    }
+}
+
+@MainActor
+private func findAsyncImageView(in view: UIView) -> AsyncImageView? {
+    if let imageView = view as? AsyncImageView {
+        return imageView
+    }
+    for subview in view.subviews {
+        if let imageView = findAsyncImageView(in: subview) {
+            return imageView
+        }
+    }
+    return nil
+}
+
 @Test @MainActor func swiftUIImageSequenceCancelsPrefetchedFramesWhenRemoved() async throws {
     let probe = ImageLoadLifecycleProbe()
     let loader = SequenceCancellationTrackingImageLoader(probe: probe)
