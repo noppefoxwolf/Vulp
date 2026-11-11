@@ -154,8 +154,10 @@ final class UIKitImageDemoViewController: UIViewController {
                 targetSize: request.targetSize,
                 cacheIdentifier: "\(request.cacheIdentifier)|debug-size"
             )
-        }, onFailure: { [weak self] error in
-            self?.errorLabel.text = "画像を読み込めませんでした: \(error.localizedDescription)"
+        }, onCompletion: { [weak self] result in
+            if case let .failure(error) = result {
+                self?.errorLabel.text = "画像を読み込めませんでした: \(error.localizedDescription)"
+            }
         })
     }
 

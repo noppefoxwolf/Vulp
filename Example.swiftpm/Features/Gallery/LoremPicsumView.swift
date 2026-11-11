@@ -48,8 +48,10 @@ struct LoremPicsumView: View {
                         loader: loader,
                         targetSize: CGSize(width: 240, height: 240),
                         levelOfIntegrity: 0.9,
-                        onFailure: { _ in
-                            errorMessage = "GIFを読み込めませんでした。ネットワークを確認してください。"
+                        onCompletion: { result in
+                            if case .failure = result {
+                                errorMessage = "GIFを読み込めませんでした。ネットワークを確認してください。"
+                            }
                         },
                         content: { image in
                             image.resizable().scaledToFit()
@@ -121,16 +123,16 @@ private struct PicsumGridCell<Loader: MediaImageLoading>: View {
 
     let request: MediaImageRequest
     let loader: Loader
-    let onFailure: @MainActor @Sendable (any Error) -> Void
+    let onCompletion: @MainActor @Sendable (Result<MediaImage, any Error>) -> Void
 
     var body: some View {
         Color.clear
         .aspectRatio(1, contentMode: .fit)
         .background(.quaternary, in: RoundedRectangle(cornerRadius: 12))
         .overlay {
-            VulpUI.AsyncImageTimelineView(request: request, loader: loader, onFailure: { error in
-                didFail = true
-                onFailure(error)
+            VulpUI.AsyncImageTimelineView(request: request, loader: loader, onCompletion: { result in
+                if case .failure = result { didFail = true }
+                onCompletion(result)
             }, content: { image in
                 image.resizable().scaledToFit()
             }) {

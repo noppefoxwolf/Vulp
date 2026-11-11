@@ -11,7 +11,7 @@ public struct AsyncImageTimelineView<Loader: MediaImageLoading, Content: View, P
     private let makeSizedSequence: (@MainActor @Sendable (CGSize, CGFloat) -> (@MainActor @Sendable () async throws -> (ImageSequenceFrameLoader<Loader>, ImageSequencePlaybackPlan))?)?
     private let content: (Image) -> Content
     private let placeholder: Placeholder
-    private let onFailure: (@MainActor @Sendable (any Error) -> Void)?
+    private let onCompletion: (@MainActor @Sendable (Result<MediaImage, any Error>) -> Void)?
 
     public let sizingMode: ImageViewSizingMode
 
@@ -27,7 +27,7 @@ public struct AsyncImageTimelineView<Loader: MediaImageLoading, Content: View, P
     public init<Request: MediaImageRequestProtocol>(
         request: Request,
         loader: Loader,
-        onFailure: (@MainActor @Sendable (any Error) -> Void)? = nil,
+        onCompletion: (@MainActor @Sendable (Result<MediaImage, any Error>) -> Void)? = nil,
         @ViewBuilder content: @escaping (Image) -> Content,
         @ViewBuilder placeholder: () -> Placeholder
     ) {
@@ -42,7 +42,7 @@ public struct AsyncImageTimelineView<Loader: MediaImageLoading, Content: View, P
             [try await loader.load(request)]
         }
         self.placeholder = placeholder()
-        self.onFailure = onFailure
+        self.onCompletion = onCompletion
     }
 
     /// Loads an image source and plays it if its decoded sequence contains multiple frames.
@@ -52,7 +52,7 @@ public struct AsyncImageTimelineView<Loader: MediaImageLoading, Content: View, P
         targetSize: CGSize,
         levelOfIntegrity: Double = 1,
         prefetchCount: Int = 3,
-        onFailure: (@MainActor @Sendable (any Error) -> Void)? = nil,
+        onCompletion: (@MainActor @Sendable (Result<MediaImage, any Error>) -> Void)? = nil,
         @ViewBuilder content: @escaping (Image) -> Content,
         @ViewBuilder placeholder: () -> Placeholder
     ) where Loader: MediaImageSequenceLoading {
@@ -78,14 +78,14 @@ public struct AsyncImageTimelineView<Loader: MediaImageLoading, Content: View, P
             )
         }
         self.placeholder = placeholder()
-        self.onFailure = onFailure
+        self.onCompletion = onCompletion
     }
 
     /// Builds a request from explicit pixels or the laid-out point size and display scale, depending on `sizingMode`.
     public init<Request: MediaImageRequestProtocol>(
         loader: Loader,
         sizingMode: ImageViewSizingMode = .viewBounds,
-        onFailure: (@MainActor @Sendable (any Error) -> Void)? = nil,
+        onCompletion: (@MainActor @Sendable (Result<MediaImage, any Error>) -> Void)? = nil,
         request: @escaping @MainActor @Sendable (CGSize?, CGFloat) throws -> Request,
         @ViewBuilder content: @escaping (Image) -> Content,
         @ViewBuilder placeholder: () -> Placeholder
@@ -111,7 +111,7 @@ public struct AsyncImageTimelineView<Loader: MediaImageLoading, Content: View, P
             }
         }
         self.placeholder = placeholder()
-        self.onFailure = onFailure
+        self.onCompletion = onCompletion
     }
 
     public var body: some View {
@@ -189,7 +189,7 @@ public struct AsyncImageTimelineView<Loader: MediaImageLoading, Content: View, P
                     playbackPlan: sequencePlayback.playbackPlan,
                     firstImage: sequencePlayback.firstImage,
                     content: content,
-                    onFailure: onFailure
+                    onCompletion: onCompletion
                 )
             } else if let image {
                 content(platformImage(image))
@@ -205,7 +205,7 @@ public struct AsyncImageTimelineView<Loader: MediaImageLoading, Content: View, P
                 } catch is CancellationError {
                     return
                 } catch {
-                    onFailure?(error)
+                    onCompletion?(.failure(error))
                 }
             } else if let operation {
                 await load(operation: operation, taskIdentifier: activeTaskIdentifier)
@@ -225,10 +225,11 @@ public struct AsyncImageTimelineView<Loader: MediaImageLoading, Content: View, P
             try Task.checkCancellation()
             image = loadedImage
             loadedTaskIdentifier = taskIdentifier
+            onCompletion?(.success(loadedImage))
         } catch is CancellationError {
             return
         } catch {
-            onFailure?(error)
+            onCompletion?(.failure(error))
         }
     }
 
@@ -250,13 +251,14 @@ public struct AsyncImageTimelineView<Loader: MediaImageLoading, Content: View, P
             let loadedImages = try await loadImages()
             try Task.checkCancellation()
             image = loadedImages.first
-            if image != nil {
+            if let image {
+                onCompletion?(.success(image))
                 loadedTaskIdentifier = taskIdentifier
             }
         } catch is CancellationError {
             return
         } catch {
-            onFailure?(error)
+            onCompletion?(.failure(error))
         }
     }
 
@@ -276,6 +278,7 @@ public struct AsyncImageTimelineView<Loader: MediaImageLoading, Content: View, P
                 try Task.checkCancellation()
                 guard playbackPlan.isAnimated else {
                     image = firstImage
+                    onCompletion?(.success(firstImage))
                     loadedTaskIdentifier = taskIdentifier
                     await frameLoader.cancel()
                     return
@@ -302,13 +305,13 @@ public extension AsyncImageTimelineView where Content == Image {
     init<Request: MediaImageRequestProtocol>(
         request: Request,
         loader: Loader,
-        onFailure: (@MainActor @Sendable (any Error) -> Void)? = nil,
+        onCompletion: (@MainActor @Sendable (Result<MediaImage, any Error>) -> Void)? = nil,
         @ViewBuilder placeholder: () -> Placeholder
     ) {
         self.init(
             request: request,
             loader: loader,
-            onFailure: onFailure,
+            onCompletion: onCompletion,
             content: { $0 },
             placeholder: placeholder
         )
@@ -320,7 +323,7 @@ public extension AsyncImageTimelineView where Content == Image {
         targetSize: CGSize,
         levelOfIntegrity: Double = 1,
         prefetchCount: Int = 3,
-        onFailure: (@MainActor @Sendable (any Error) -> Void)? = nil,
+        onCompletion: (@MainActor @Sendable (Result<MediaImage, any Error>) -> Void)? = nil,
         @ViewBuilder placeholder: () -> Placeholder
     ) where Loader: MediaImageSequenceLoading {
         self.init(
@@ -329,7 +332,7 @@ public extension AsyncImageTimelineView where Content == Image {
             targetSize: targetSize,
             levelOfIntegrity: levelOfIntegrity,
             prefetchCount: prefetchCount,
-            onFailure: onFailure,
+            onCompletion: onCompletion,
             content: { $0 },
             placeholder: placeholder
         )
@@ -338,14 +341,14 @@ public extension AsyncImageTimelineView where Content == Image {
     init<Request: MediaImageRequestProtocol>(
         loader: Loader,
         sizingMode: ImageViewSizingMode = .viewBounds,
-        onFailure: (@MainActor @Sendable (any Error) -> Void)? = nil,
+        onCompletion: (@MainActor @Sendable (Result<MediaImage, any Error>) -> Void)? = nil,
         request: @escaping @MainActor @Sendable (CGSize?, CGFloat) throws -> Request,
         @ViewBuilder placeholder: () -> Placeholder
     ) {
         self.init(
             loader: loader,
             sizingMode: sizingMode,
-            onFailure: onFailure,
+            onCompletion: onCompletion,
             request: request,
             content: { $0 },
             placeholder: placeholder
@@ -368,7 +371,7 @@ private struct SequencePlaybackView<Loader: MediaImageLoading, Content: View>: V
         playbackPlan: ImageSequencePlaybackPlan,
         firstImage: MediaImage,
         content: @escaping (Image) -> Content,
-        onFailure: (@MainActor @Sendable (any Error) -> Void)?
+        onCompletion: (@MainActor @Sendable (Result<MediaImage, any Error>) -> Void)?
     ) {
         self.content = content
         _model = State(
@@ -376,7 +379,7 @@ private struct SequencePlaybackView<Loader: MediaImageLoading, Content: View>: V
                 frameLoader: frameLoader,
                 playbackPlan: playbackPlan,
                 firstImage: firstImage,
-                onFailure: onFailure
+                onCompletion: onCompletion
             )
         )
     }
@@ -403,7 +406,7 @@ private final class SequencePlaybackModel<Loader: MediaImageLoading> {
 
     @ObservationIgnored private let frameLoader: ImageSequenceFrameLoader<Loader>
     @ObservationIgnored private let startDate = Date.now
-    @ObservationIgnored private let onFailure: (@MainActor @Sendable (any Error) -> Void)?
+    @ObservationIgnored private let onCompletion: (@MainActor @Sendable (Result<MediaImage, any Error>) -> Void)?
     @ObservationIgnored private var desiredPosition = 0
     @ObservationIgnored private var displayedPosition = 0
     @ObservationIgnored private var frameLoadingTask: Task<Void, Never>?
@@ -413,12 +416,12 @@ private final class SequencePlaybackModel<Loader: MediaImageLoading> {
         frameLoader: ImageSequenceFrameLoader<Loader>,
         playbackPlan: ImageSequencePlaybackPlan,
         firstImage: MediaImage,
-        onFailure: (@MainActor @Sendable (any Error) -> Void)?
+        onCompletion: (@MainActor @Sendable (Result<MediaImage, any Error>) -> Void)?
     ) {
         self.frameLoader = frameLoader
         self.playbackPlan = playbackPlan
         self.image = firstImage
-        self.onFailure = onFailure
+        self.onCompletion = onCompletion
     }
 
     func position(at date: Date) -> Int {
@@ -447,11 +450,12 @@ private final class SequencePlaybackModel<Loader: MediaImageLoading> {
                 try Task.checkCancellation()
                 guard self.isActive, self.desiredPosition == position else { return }
                 self.image = frame
+                self.onCompletion?(.success(frame))
                 self.displayedPosition = position
             } catch is CancellationError {
                 return
             } catch {
-                self.onFailure?(error)
+                self.onCompletion?(.failure(error))
                 self.stop()
             }
         }
@@ -476,7 +480,7 @@ public extension AsyncImageTimelineView where Loader == DefaultMediaImageLoader<
         url: URL,
         levelOfIntegrity: Double = 1,
         prefetchCount: Int = 3,
-        onFailure: (@MainActor @Sendable (any Error) -> Void)? = nil,
+        onCompletion: (@MainActor @Sendable (Result<MediaImage, any Error>) -> Void)? = nil,
         @ViewBuilder content: @escaping (Image) -> Content,
         @ViewBuilder placeholder: () -> Placeholder
     ) {
@@ -511,7 +515,7 @@ public extension AsyncImageTimelineView where Loader == DefaultMediaImageLoader<
             }
         }
         self.placeholder = placeholder()
-        self.onFailure = onFailure
+        self.onCompletion = onCompletion
     }
 }
 
@@ -524,14 +528,14 @@ public extension AsyncImageTimelineView where Loader == DefaultMediaImageLoader<
         url: URL,
         levelOfIntegrity: Double = 1,
         prefetchCount: Int = 3,
-        onFailure: (@MainActor @Sendable (any Error) -> Void)? = nil,
+        onCompletion: (@MainActor @Sendable (Result<MediaImage, any Error>) -> Void)? = nil,
         @ViewBuilder placeholder: () -> Placeholder
     ) {
         self.init(
             url: url,
             levelOfIntegrity: levelOfIntegrity,
             prefetchCount: prefetchCount,
-            onFailure: onFailure,
+            onCompletion: onCompletion,
             content: { $0 },
             placeholder: placeholder
         )
@@ -547,13 +551,13 @@ public extension AsyncImageTimelineView where Loader == DefaultMediaImageLoader<
         url: URL,
         levelOfIntegrity: Double = 1,
         prefetchCount: Int = 3,
-        onFailure: (@MainActor @Sendable (any Error) -> Void)? = nil
+        onCompletion: (@MainActor @Sendable (Result<MediaImage, any Error>) -> Void)? = nil
     ) {
         self.init(
             url: url,
             levelOfIntegrity: levelOfIntegrity,
             prefetchCount: prefetchCount,
-            onFailure: onFailure,
+            onCompletion: onCompletion,
             content: { $0 },
             placeholder: { ProgressView() }
         )
