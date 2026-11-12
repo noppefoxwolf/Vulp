@@ -16,10 +16,8 @@ public struct RemoteMediaAsset: MediaAsset {
         self.fallbackImage = fallbackImage
     }
 
-    public var directURL: URL? { url }
-
     @concurrent
-    public func loadData(using downloader: any ImageDataDownloader) async throws -> Data {
+    public func loadData(using downloader: any AssetDataDownloader) async throws -> Data {
         try await downloader.download(from: url)
     }
 }

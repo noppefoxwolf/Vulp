@@ -2,46 +2,76 @@ import Foundation
 import Vulp
 import Testing
 
-@Test func mediaImageLoaderDecodesRemoteVideoURLWithoutDownloadingWholeSource() async throws {
+@Test func mediaImageLoaderDownloadsSourceBeforeSelectingURLDecoder() async throws {
     let videoDecoder = CountingVideoDecoder()
-    let downloader = CountingDownloader()
+    let downloader = CountingAssetDownloader()
+    let directory = FileManager.default.temporaryDirectory
+        .appendingPathComponent("VulpTests-\(UUID().uuidString)", isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let dataCache = DiskAssetDataCache(directory: directory)
     let loader = DefaultMediaImageLoader(
         downloader: downloader,
         decoders: [videoDecoder],
         processor: ResizeImageProcessor(),
-        cache: InMemoryImageCache()
+        cache: InMemoryImageCache(),
+        dataCache: dataCache
     )
-    let asset = RemoteMediaAsset(url: URL(string: "https://example.com/clip.mp4")!)
-    let request = try MediaImageRequest(assetHandle: asset, targetSize: .zero)
+    let asset = RemoteMediaAsset(
+        url: URL(string: "https://example.com/clip.mp4")!,
+        uniqueKey: UUID().uuidString
+    )
+    let request = try MediaImageRequest(asset: asset, targetSize: .zero)
 
     _ = try await loader.load(request)
 
-    #expect(await videoDecoder.urls == [asset.url])
-    #expect(await downloader.callCount == 0)
+    let decodedURLs = await videoDecoder.urls
+    let cachedFileURL = await dataCache.fileURL(forKey: asset.uniqueKey)
+    #expect(decodedURLs.count == 1)
+    #expect(decodedURLs[0].isFileURL)
+    #expect(decodedURLs[0] != asset.url)
+    #expect(decodedURLs[0] == cachedFileURL)
+    #expect(await downloader.callCount == 1)
+
+    let cachedSourceDownloader = CountingAssetDownloader()
+    let cachedSourceLoader = DefaultMediaImageLoader(
+        downloader: cachedSourceDownloader,
+        decoders: [videoDecoder],
+        processor: ResizeImageProcessor(),
+        cache: InMemoryImageCache(),
+        dataCache: dataCache
+    )
+    _ = try await cachedSourceLoader.load(request)
+
+    #expect(await videoDecoder.urls == [decodedURLs[0], decodedURLs[0]])
+    #expect(await cachedSourceDownloader.callCount == 0)
 }
 
 @Test func mediaImageLoaderRoutesSourcesThroughTheFirstMatchingDecoder() async throws {
     let videoDecoder = CountingVideoDecoder()
-    let downloader = CountingDownloader()
+    let downloader = CountingAssetDownloader()
     let loader = DefaultMediaImageLoader(
         downloader: downloader,
         decoders: [videoDecoder],
         processor: ResizeImageProcessor(),
         cache: InMemoryImageCache()
     )
-    let asset = RemoteMediaAsset(url: URL(string: "https://example.com/clip.mkv")!)
-    let request = try MediaImageRequest(assetHandle: asset, targetSize: .zero)
+    let asset = RemoteMediaAsset(
+        url: URL(string: "https://example.com/clip.mkv")!,
+        uniqueKey: UUID().uuidString
+    )
+    let request = try MediaImageRequest(asset: asset, targetSize: .zero)
 
     _ = try await loader.load(request)
     let decodedURLs = await videoDecoder.urls
     let downloadCount = await downloader.callCount
 
-    #expect(decodedURLs == [asset.url])
-    #expect(downloadCount == 0)
+    #expect(decodedURLs.count == 1)
+    #expect(decodedURLs[0].isFileURL)
+    #expect(downloadCount == 1)
 }
 
-@Test func mediaImageLoaderFallsBackToImageDataWhenDirectURLDecoderDeclinesSource() async throws {
-    let downloader = CountingDownloader()
+@Test func mediaImageLoaderFallsBackWhenLocalFileDecoderDeclinesSource() async throws {
+    let downloader = CountingAssetDownloader()
     let loader = DefaultMediaImageLoader(
         downloader: downloader,
         decoders: [UnsupportedVideoDecoder(), ImageIOImageDecoder()],
@@ -52,7 +82,7 @@ import Testing
         url: URL(string: "https://example.com/renamed.mp4")!,
         uniqueKey: UUID().uuidString
     )
-    let request = try MediaImageRequest(assetHandle: asset, targetSize: .zero)
+    let request = try MediaImageRequest(asset: asset, targetSize: .zero)
 
     let image = try await loader.load(request)
     let downloadCount = await downloader.callCount
@@ -64,14 +94,14 @@ import Testing
 @Test func videoRequestDoesNotTreatSequenceIndexAsVideoTime() async throws {
     let videoDecoder = CountingVideoDecoder()
     let loader = DefaultMediaImageLoader(
-        downloader: CountingDownloader(),
+        downloader: CountingAssetDownloader(),
         decoders: [videoDecoder],
         processor: ResizeImageProcessor(),
         cache: InMemoryImageCache()
     )
     let asset = RemoteMediaAsset(url: URL(string: "https://example.com/clip.mp4")!)
     let request = try MediaImageRequest(
-        assetHandle: asset,
+        asset: asset,
         targetSize: .zero,
         decodingOptions: .frame(index: 3)
     )
@@ -83,46 +113,50 @@ import Testing
     #expect(await videoDecoder.urls.isEmpty)
 }
 
-@Test func sequenceLoadingRejectsKnownVideoBeforeDownloadingIt() async throws {
-    let downloader = CountingDownloader()
+@Test func sequenceLoadingRejectsVideoAfterDownloadingIt() async throws {
+    let downloader = CountingAssetDownloader()
     let loader = DefaultMediaImageLoader(
         downloader: downloader,
         decoders: [CountingVideoDecoder()],
         processor: ResizeImageProcessor(),
         cache: InMemoryImageCache()
     )
-    let asset = RemoteMediaAsset(url: URL(string: "https://example.com/sequence.mp4")!)
+    let asset = RemoteMediaAsset(
+        url: URL(string: "https://example.com/sequence.mp4")!,
+        uniqueKey: UUID().uuidString
+    )
 
     await #expect(throws: ImageSequenceError.unsupportedMediaSource) {
         try await loader.loadSequence(from: asset)
     }
     let downloadCount = await downloader.callCount
-    #expect(downloadCount == 0)
+    #expect(downloadCount == 1)
 }
 
-private actor CountingVideoDecoder: VideoFrameDecoding {
+private actor CountingVideoDecoder: MediaImageDecoding {
     private(set) var urls: [URL] = []
 
-    func canDecode(data: Data) async -> Bool { false }
     func canDecode(url: URL) async -> Bool { true }
 
-    func decodeFrame(
+    func decode(
         from url: URL,
-        at time: TimeInterval,
+        options: ImageDecodingOptions,
         maximumPixelDimension: Int?
     ) async throws -> MediaImage {
+        if case .frame(let index) = options {
+            throw MediaImageDecodingError.videoFrameIndexUnsupported(index)
+        }
         urls.append(url)
         return try await TestImageData.image()
     }
 }
 
-private struct UnsupportedVideoDecoder: VideoFrameDecoding {
-    func canDecode(data: Data) async -> Bool { false }
+private struct UnsupportedVideoDecoder: MediaImageDecoding {
     func canDecode(url: URL) async -> Bool { true }
 
-    func decodeFrame(
+    func decode(
         from url: URL,
-        at time: TimeInterval,
+        options: ImageDecodingOptions,
         maximumPixelDimension: Int?
     ) async throws -> MediaImage {
         throw MediaImageDecodingError.unsupportedSource

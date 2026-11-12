@@ -1,12 +1,10 @@
 import Foundation
 
-/// An image asset backed by a local file URL.
+/// A media asset backed by a local file URL.
 public struct FileMediaAsset: MediaAsset {
     public let url: URL
     public let uniqueKey: String
     public let fallbackImage: MediaImage?
-
-    public var directURL: URL? { url }
 
     public init(
         url: URL,
@@ -19,7 +17,7 @@ public struct FileMediaAsset: MediaAsset {
     }
 
     @concurrent
-    public func loadData(using downloader: any ImageDataDownloader) async throws -> Data {
+    public func loadData(using downloader: any AssetDataDownloader) async throws -> Data {
         try Data(contentsOf: url)
     }
 }

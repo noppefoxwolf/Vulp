@@ -4,7 +4,7 @@ import Foundation
 import FoundationNetworking
 #endif
 
-public struct DefaultImageDataDownloader: ImageDataDownloader {
+public struct DefaultAssetDataDownloader: AssetDataDownloader {
     private let session: URLSession
     private let maximumDownloadSize: Int
 
@@ -23,15 +23,15 @@ public struct DefaultImageDataDownloader: ImageDataDownloader {
     public func download(from url: URL) async throws -> Data {
         let (bytes, response) = try await session.bytes(from: url)
         guard let response = response as? HTTPURLResponse else {
-            throw ImageDownloadError.invalidResponse
+            throw AssetDownloadError.invalidResponse
         }
 
         guard (200..<300).contains(response.statusCode) else {
-            throw ImageDownloadError.unacceptableStatusCode(response.statusCode)
+            throw AssetDownloadError.unacceptableStatusCode(response.statusCode)
         }
 
         if response.expectedContentLength > Int64(maximumDownloadSize) {
-            throw ImageDownloadError.exceedsMaximumSize(limit: maximumDownloadSize)
+            throw AssetDownloadError.exceedsMaximumSize(limit: maximumDownloadSize)
         }
 
         var data = Data()
@@ -41,7 +41,7 @@ public struct DefaultImageDataDownloader: ImageDataDownloader {
 
         for try await byte in bytes {
             guard data.count < maximumDownloadSize else {
-                throw ImageDownloadError.exceedsMaximumSize(limit: maximumDownloadSize)
+                throw AssetDownloadError.exceedsMaximumSize(limit: maximumDownloadSize)
             }
             data.append(byte)
         }

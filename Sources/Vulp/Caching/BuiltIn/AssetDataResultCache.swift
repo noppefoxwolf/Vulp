@@ -1,25 +1,29 @@
 import Foundation
 
 actor AssetDataResultCache {
-    private let dataCache: any ImageDataCache
+    private let dataCache: any AssetDataCache
     private var failures: [String: any Error] = [:]
 
-    init(dataCache: any ImageDataCache) {
+    init(dataCache: any AssetDataCache) {
         self.dataCache = dataCache
     }
 
-    func result(forKey key: String) async -> Result<Data, any Error>? {
-        if let data = await dataCache.data(forKey: key) {
+    func fileURL(forKey key: String) async -> URL? {
+        let url = await dataCache.fileURL(forKey: key)
+        if url != nil {
             failures.removeValue(forKey: key)
-            return .success(data)
         }
-        guard let error = failures[key] else { return nil }
-        return .failure(error)
+        return url
     }
 
-    func insert(_ data: Data, forKey key: String) async {
-        await dataCache.insert(data, forKey: key)
+    func failure(forKey key: String) -> (any Error)? {
+        failures[key]
+    }
+
+    func insert(_ data: Data, forKey key: String) async -> URL? {
+        let url = await dataCache.insert(data, forKey: key)
         failures.removeValue(forKey: key)
+        return url
     }
 
     func insertFailure(_ error: any Error, forKey key: String) {

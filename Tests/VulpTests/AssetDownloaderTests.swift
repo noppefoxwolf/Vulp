@@ -23,7 +23,7 @@ private final class StubURLProtocol: URLProtocol {
         else { return }
 
         client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
-        client?.urlProtocol(self, didLoad: Data("image bytes".utf8))
+        client?.urlProtocol(self, didLoad: Data("asset bytes".utf8))
         client?.urlProtocolDidFinishLoading(self)
     }
 
@@ -36,60 +36,60 @@ private func makeStubbedURLSession() -> URLSession {
     return URLSession(configuration: configuration)
 }
 
-private struct OpaqueDataAssetHandle: ImageAssetHandle {
+private struct OpaqueDataAsset: MediaAsset {
     let uniqueKey = "opaque-data"
     let fallbackImage: MediaImage? = nil
     let data: Data
 
     @concurrent
-    func loadData(using downloader: any ImageDataDownloader) async throws -> Data {
+    func loadData(using downloader: any AssetDataDownloader) async throws -> Data {
         data
     }
 }
 
 @Test func dataAssetReturnsItsData() async throws {
-    let asset = await DataImageAsset(data: TestImageData.png)
-    let result = try await asset.loadData(using: DefaultImageDataDownloader())
+    let asset = await DataMediaAsset(data: TestImageData.png)
+    let result = try await asset.loadData(using: DefaultAssetDataDownloader())
 
     #expect(result == TestImageData.png)
 }
 
-@Test func assetHandleWithoutCustomDownloadReportsUnsupportedAsset() async {
+@Test func assetWithoutCustomDownloadReportsUnsupportedAsset() async {
     do {
-        _ = try await CustomAssetHandle().loadData(using: DefaultImageDataDownloader())
+        _ = try await CustomAsset().loadData(using: DefaultAssetDataDownloader())
         Issue.record("Expected an opaque asset to report unsupportedAsset")
-    } catch let error as ImageDownloadError {
+    } catch let error as AssetDownloadError {
         #expect(error == .unsupportedAsset)
     } catch {
         Issue.record("Unexpected error: \(error)")
     }
 }
 
-@Test func customAssetHandleCanLoadWithoutBuiltInAssetType() async throws {
+@Test func customAssetCanLoadWithoutBuiltInAssetType() async throws {
     let data = Data("custom source".utf8)
-    let asset = OpaqueDataAssetHandle(data: data)
+    let asset = OpaqueDataAsset(data: data)
 
-    #expect(try await asset.loadData(using: DefaultImageDataDownloader()) == data)
+    #expect(try await asset.loadData(using: DefaultAssetDataDownloader()) == data)
 }
 
-@Test func defaultDownloaderLoadsHTTPResponseBody() async throws {
-    let body = Data("image bytes".utf8)
+@Test func defaultAssetDataDownloaderLoadsHTTPResponseBody() async throws {
+    let body = Data("asset bytes".utf8)
     let url = URL(string: "https://example.com/200")!
-    let downloader = DefaultImageDataDownloader(session: makeStubbedURLSession())
+    let downloader = DefaultAssetDataDownloader(session: makeStubbedURLSession())
 
     let result = try await downloader.download(from: url)
 
     #expect(result == body)
 }
 
-@Test func defaultDownloaderRejectsNonSuccessResponse() async {
+@Test func defaultAssetDataDownloaderRejectsNonSuccessResponse() async {
     let url = URL(string: "https://example.com/404")!
-    let downloader = DefaultImageDataDownloader(session: makeStubbedURLSession())
+    let downloader = DefaultAssetDataDownloader(session: makeStubbedURLSession())
 
     do {
         _ = try await downloader.download(from: url)
         Issue.record("Expected non-success HTTP status to fail")
-    } catch let error as ImageDownloadError {
+    } catch let error as AssetDownloadError {
         #expect(error == .unacceptableStatusCode(404))
     } catch {
         Issue.record("Unexpected error: \(error)")

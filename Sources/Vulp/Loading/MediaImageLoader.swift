@@ -3,9 +3,6 @@ import CoreGraphics
 
 public protocol MediaImageLoading: Sendable {
     @concurrent
-    func load<Request: MediaImageRequestProtocol>(_ request: Request) async throws -> MediaImage
-
-    @concurrent
     func load<Request: MediaImageRequestProtocol>(
         _ request: Request,
         priority: TaskPriority
@@ -18,23 +15,10 @@ public protocol MediaImageLoading: Sendable {
 }
 
 public extension MediaImageLoading {
-    /// Loads a request from a task created at the supplied scheduling priority.
-    ///
-    /// Conforming loaders may provide a more direct implementation. The default
-    /// keeps existing custom loaders source-compatible.
+    /// Loads a request at user-initiated priority.
     @concurrent
-    func load<Request: MediaImageRequestProtocol>(
-        _ request: Request,
-        priority: TaskPriority
-    ) async throws -> MediaImage {
-        let task = Task(priority: priority) {
-            try await load(request)
-        }
-        return try await withTaskCancellationHandler {
-            try await task.value
-        } onCancel: {
-            task.cancel()
-        }
+    func load<Request: MediaImageRequestProtocol>(_ request: Request) async throws -> MediaImage {
+        try await load(request, priority: .userInitiated)
     }
 
     /// Starts a low-priority asset prefetch.
@@ -47,7 +31,7 @@ public extension MediaImageLoading {
     ) -> Task<Void, Never> {
         let task = Task(priority: priority) { [self] in
             do {
-                let request = try MediaImageRequest(assetHandle: asset, targetSize: .zero)
+                let request = try MediaImageRequest(asset: asset, targetSize: .zero)
                 _ = try await load(request, priority: priority)
             } catch is CancellationError {
                 // Cancellation is expected when a prefetched item leaves the

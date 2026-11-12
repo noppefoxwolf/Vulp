@@ -8,9 +8,9 @@ struct SizedImageDemoView: View {
     @State private var showsImageSize = false
     @State private var loader: DefaultMediaImageLoader
 
-    private let dataCache: DiskImageDataCache
+    private let dataCache: DiskAssetDataCache
 
-    init(dataCache: DiskImageDataCache) {
+    init(dataCache: DiskAssetDataCache) {
         self.dataCache = dataCache
         _loader = State(initialValue: Self.makeLoader(showsImageSize: false, dataCache: dataCache))
     }
@@ -53,7 +53,7 @@ struct SizedImageDemoView: View {
                     request: { pixelSize, scale in
                         let pointSize = pixelSize ?? CGSize(width: viewSize, height: viewSize)
                         let request = try MediaImageRequest(
-                            assetHandle: asset,
+                            asset: asset,
                             targetSize: CGSize(
                                 width: pointSize.width * scale,
                                 height: pointSize.height * scale
@@ -62,7 +62,7 @@ struct SizedImageDemoView: View {
                         )
                         guard showsImageSize else { return request }
                         return try MediaImageRequest(
-                            assetHandle: asset,
+                            asset: asset,
                             targetSize: request.targetSize,
                             cacheIdentifier: "\(request.cacheIdentifier)|debug-size"
                         )
@@ -101,10 +101,10 @@ struct SizedImageDemoView: View {
         loader = Self.makeLoader(showsImageSize: isEnabled, dataCache: dataCache)
     }
 
-    private static func makeLoader(showsImageSize: Bool, dataCache: DiskImageDataCache) -> DefaultMediaImageLoader {
+    private static func makeLoader(showsImageSize: Bool, dataCache: DiskAssetDataCache) -> DefaultMediaImageLoader {
         DefaultMediaImageLoader(
-            downloader: DefaultImageDataDownloader(),
-            decoder: ImageIOImageDecoder(),
+            downloader: DefaultAssetDataDownloader(),
+            decoders: [ImageIOImageDecoder()],
             processor: ResizeImageProcessor() + ImageSizeDebugProcessor(isEnabled: showsImageSize),
             cache: InMemoryImageCache(),
             dataCache: dataCache

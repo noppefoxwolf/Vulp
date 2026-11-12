@@ -5,7 +5,7 @@ public enum ImageSequenceError: Error, Equatable {
     case unsupportedMediaSource
 }
 
-/// Encoded image data with a stable identity and a known number of frames.
+/// Encoded animated-image asset data with a stable identity and known frame durations.
 public struct ImageSequence: Sendable {
     public let identifier: String
     public let frameCount: Int
@@ -36,7 +36,7 @@ public struct ImageSequence: Sendable {
 
         let asset = DataMediaAsset(data: data, uniqueKey: identifier)
         return try MediaImageRequest(
-            assetHandle: asset,
+            asset: asset,
             targetSize: targetSize,
             decodingOptions: .frame(index: index)
         )
@@ -65,11 +65,3 @@ public protocol MediaImageSequenceLoading: MediaImageLoading {
 }
 
 public typealias ImageSequenceLoading = MediaImageSequenceLoading
-
-public extension MediaImageSequenceDecoding {
-    @concurrent
-    func loadSequence(_ data: Data, identifier: String) async throws -> ImageSequence {
-        let durations = try await frameDurations(in: data)
-        return ImageSequence(identifier: identifier, data: data, frameDurations: durations)
-    }
-}

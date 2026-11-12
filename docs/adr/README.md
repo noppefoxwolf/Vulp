@@ -33,3 +33,4 @@ This directory stores decisions that affect Vulp's architecture and public API.
 - [0020. Use CGImage as the decoded MediaImage type](0020-use-cgimage-as-media-image.md)
 - [0021. Add a SwiftUI wrapper for the UIKit image view](0021-add-swiftui-wrapper-for-uikit-view.md)
 - [0022. Keep sizing mode types in UI targets](0022-keep-sizing-mode-types-in-ui-targets.md)
+- [0023. Select decoders from local source files](0023-select-decoders-from-local-source-files.md)

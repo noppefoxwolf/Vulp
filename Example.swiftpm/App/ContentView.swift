@@ -2,7 +2,7 @@ import VulpUI
 import SwiftUI
 
 struct ContentView: View {
-    @State private var dataCache = DiskImageDataCache()
+    @State private var dataCache = DiskAssetDataCache()
     @State private var isShowingCacheClearConfirmation = false
     @State private var isShowingCacheClearedAlert = false
 

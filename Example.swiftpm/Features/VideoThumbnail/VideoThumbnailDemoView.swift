@@ -55,7 +55,7 @@ struct VideoThumbnailDemoView: View {
             }
 
             Section("この例で使う API") {
-                Text("RemoteMediaAsset と MediaImageRequest を作り、MediaImageLoader.default に渡します。動画 URL は AVFoundation が直接読み込みます。")
+                Text("RemoteMediaAsset と MediaImageRequest を作り、MediaImageLoader.default に渡します。動画ソースをキャッシュした後、AVFoundation がローカルファイルを判定してフレームを読み込みます。")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
@@ -97,7 +97,7 @@ struct VideoThumbnailDemoView: View {
 
         do {
             let request = try MediaImageRequest(
-                assetHandle: RemoteMediaAsset(url: url),
+                asset: RemoteMediaAsset(url: url),
                 targetSize: CGSize(width: 640, height: 360)
             )
             thumbnail = try await MediaImageLoader.default.load(request)

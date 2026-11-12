@@ -3,7 +3,7 @@ import UIKit
 import VulpUI
 
 struct UIKitImageDemoView: UIViewControllerRepresentable {
-    let dataCache: DiskImageDataCache
+    let dataCache: DiskAssetDataCache
 
     func makeUIViewController(context: Context) -> UIKitImageDemoViewController {
         UIKitImageDemoViewController(dataCache: dataCache)
@@ -15,7 +15,7 @@ struct UIKitImageDemoView: UIViewControllerRepresentable {
 @MainActor
 final class UIKitImageDemoViewController: UIViewController {
     private var loader: DefaultMediaImageLoader
-    private let dataCache: DiskImageDataCache
+    private let dataCache: DiskAssetDataCache
     private let imageView = VulpUI.AsyncImageView()
     private let imageContainer = UIView()
     private let contentModeControl = UISegmentedControl(items: ["Fit", "Fill"])
@@ -31,7 +31,7 @@ final class UIKitImageDemoViewController: UIViewController {
         uniqueKey: "example-uikit-sized-image"
     )
 
-    init(dataCache: DiskImageDataCache) {
+    init(dataCache: DiskAssetDataCache) {
         self.dataCache = dataCache
         loader = Self.makeLoader(showsImageSize: false, dataCache: dataCache)
         super.init(nibName: nil, bundle: nil)
@@ -138,13 +138,13 @@ final class UIKitImageDemoViewController: UIViewController {
         imageView.loadImage(using: loader, request: { [asset] pointSize, displayScale in
             let size = pointSize ?? .zero
             let request = try MediaImageRequest(
-                assetHandle: asset,
+                asset: asset,
                 targetSize: size,
                 scale: displayScale
             )
             guard showsImageSize else { return request }
             return try MediaImageRequest(
-                assetHandle: asset,
+                asset: asset,
                 targetSize: request.targetSize,
                 cacheIdentifier: "\(request.cacheIdentifier)|debug-size"
             )
@@ -159,10 +159,10 @@ final class UIKitImageDemoViewController: UIViewController {
         sizeLabel.text = "画像ビュー: \(Int(sizeSlider.value)) pt四方"
     }
 
-    private static func makeLoader(showsImageSize: Bool, dataCache: DiskImageDataCache) -> DefaultMediaImageLoader {
+    private static func makeLoader(showsImageSize: Bool, dataCache: DiskAssetDataCache) -> DefaultMediaImageLoader {
         DefaultMediaImageLoader(
-            downloader: DefaultImageDataDownloader(),
-            decoder: ImageIOImageDecoder(),
+            downloader: DefaultAssetDataDownloader(),
+            decoders: [ImageIOImageDecoder()],
             processor: ResizeImageProcessor() + ImageSizeDebugProcessor(isEnabled: showsImageSize),
             cache: InMemoryImageCache(),
             dataCache: dataCache

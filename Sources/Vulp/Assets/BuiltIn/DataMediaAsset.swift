@@ -1,6 +1,6 @@
 import Foundation
 
-/// An image asset backed by already encoded image data.
+/// A media asset backed by already encoded source data.
 public struct DataMediaAsset: MediaAsset {
     public let data: Data
     public let uniqueKey: String
@@ -24,7 +24,7 @@ public struct DataMediaAsset: MediaAsset {
     }
 
     @concurrent
-    public func loadData(using downloader: any ImageDataDownloader) async throws -> Data {
+    public func loadData(using downloader: any AssetDataDownloader) async throws -> Data {
         data
     }
 }

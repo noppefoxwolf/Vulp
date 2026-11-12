@@ -6,13 +6,13 @@ struct LoremPicsumView: View {
     @State private var errorMessage: String?
     @State private var loader: DefaultMediaImageLoader
 
-    private let dataCache: DiskImageDataCache
+    private let dataCache: DiskAssetDataCache
 
-    init(dataCache: DiskImageDataCache) {
+    init(dataCache: DiskAssetDataCache) {
         self.dataCache = dataCache
         _loader = State(initialValue: DefaultMediaImageLoader(
-            downloader: DefaultImageDataDownloader(),
-            decoder: ImageIOImageDecoder(),
+            downloader: DefaultAssetDataDownloader(),
+            decoders: [ImageIOImageDecoder()],
             processor: ResizeImageProcessor(),
             cache: InMemoryImageCache(),
             dataCache: dataCache
@@ -100,7 +100,7 @@ struct LoremPicsumView: View {
                 let url = URL(string: "https://picsum.photos/seed/\(seed)-\(index)/250/250")!
                 let asset = RemoteMediaAsset(url: url, uniqueKey: url.absoluteString)
                 return try MediaImageRequest(
-                    assetHandle: asset,
+                    asset: asset,
                     targetSize: CGSize(width: 250, height: 250)
                 )
             }

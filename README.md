@@ -74,17 +74,17 @@ Share a loader across screens and cells instead of creating one for each view. T
 import Vulp
 
 typealias AppImageLoader = DefaultMediaImageLoader<
-    DefaultImageDataDownloader,
+    DefaultAssetDataDownloader,
     ResizeImageProcessor,
     LRUImageCache
 >
 
 let imageLoader = AppImageLoader(
-    downloader: DefaultImageDataDownloader(),
+    downloader: DefaultAssetDataDownloader(),
     decoders: [ImageIOImageDecoder()],
     processor: ResizeImageProcessor(),
     cache: LRUImageCache(countLimit: 300),
-    dataCache: DiskImageDataCache(
+    dataCache: DiskAssetDataCache(
         maxSizeBytes: 200 * 1024 * 1024,
         maxAge: 14 * 24 * 60 * 60
     )
@@ -95,7 +95,7 @@ For a collection or list, request the **pixel dimensions needed for display**, n
 
 ```swift
 let request = try MediaImageRequest(
-    assetHandle: RemoteMediaAsset(url: photoURL),
+    asset: RemoteMediaAsset(url: photoURL),
     targetSize: CGSize(width: 450, height: 450)
 )
 
@@ -147,7 +147,7 @@ final class PhotoDataSource: NSObject,
 {
     let urls: [URL]
     let loader = MediaImageLoader.default
-    private let prefetcher = MediaImagePrefetcher()
+    private let prefetcher = MediaAssetPrefetcher()
 
     init(urls: [URL]) {
         self.urls = urls
@@ -159,7 +159,7 @@ final class PhotoDataSource: NSObject,
 
     private func request(at indexPath: IndexPath) throws -> MediaImageRequest {
         try MediaImageRequest(
-            assetHandle: asset(at: indexPath),
+            asset: asset(at: indexPath),
             targetSize: CGSize(width: 450, height: 450)
         )
     }
@@ -207,7 +207,7 @@ final class PhotoDataSource: NSObject,
 
 The prefetch and cell requests should use the same `asset.uniqueKey` so the cell load can reuse the encoded source from disk. Their size, rendering mode, and decoding options may differ because the default loader's prefetch does not create a decoded-image cache entry. Cancel a cell's load task during reuse so an old result cannot be assigned to a reused cell.
 
-`MediaImagePrefetcher` manages prefetch tasks for URL batches. Start URLs as they enter the prefetch window and stop them when they leave; duplicate starts are ignored and completed tasks are removed automatically. `stopPrefetching()` cancels every task managed by that instance. `MediaImageLoading.prefetch(_ asset:)` remains available when callers need an individual cancellable `MediaImagePrefetchTask`, and defaults to `.background` priority. `DefaultMediaImageLoader` downloads only the encoded source into its data cache; other loaders can implement asset prefetching as needed. Concurrent source downloads with the same `uniqueKey` share one in-flight operation; different keys are treated as separate assets even when their URLs match. The active shared download is cancelled when its last waiter goes away; cancelling one waiter does not interrupt a download still used by another caller. The `prefetch(_ request:)` overload remains available and forwards to `request.assetHandle`, so request size is ignored. Set an explicit priority for visible work when needed:
+`MediaAssetPrefetcher` manages prefetch tasks for URL batches. Start URLs as they enter the prefetch window and stop them when they leave; duplicate starts are ignored and completed tasks are removed automatically. `stopPrefetching()` cancels every task managed by that instance. `MediaImageLoading.prefetch(_ asset:)` remains available when callers need an individual cancellable `Task<Void, Never>`, and defaults to `.background` priority. `DefaultMediaImageLoader` downloads only the encoded source into its asset data cache; other loaders can implement asset prefetching as needed. Concurrent source downloads with the same `uniqueKey` share one in-flight operation; different keys are treated as separate assets even when their URLs match. The active shared download is cancelled when its last waiter goes away; cancelling one waiter does not interrupt a download still used by another caller. The `prefetch(_ request:)` overload remains available and forwards to `request.asset`, so request size is ignored. Set an explicit priority for visible work when needed:
 
 ```swift
 let image = try await loader.load(request, priority: .userInitiated)
@@ -219,24 +219,27 @@ let image = try await loader.load(request, priority: .userInitiated)
 
 ## Customization
 
-Build a loader from the `MediaImageLoading`, `ImageDataDownloader`, `MediaImageDecoding`, `ImageProcessor`, `ImageCache`, and `ImageDataCache` protocols. Every `MediaImageDecoding` implementation must implement `canDecode(data:)` and `canDecode(url:)` so the ordered decoder array can select the right one. Implement `canDecodeSequence(data:)` to opt into animated-image sequence loading. `DefaultMediaImageLoader` uses the first matching decoder for each operation.
+Build a loader from the `MediaImageLoading`, `AssetDataDownloader`, `MediaImageDecoding`, `ImageProcessor`, `ImageCache`, and `AssetDataCache` protocols. Implement `canDecode(url:)` to inspect a local source file. `DefaultMediaImageLoader` asks the asset data cache for a local file URL before selecting a decoder; it never probes the original remote URL. `AssetDataCache.insert(_:forKey:)` returns the stored source URL when the cache can provide one. If it cannot, the loader stages the fetched source in a temporary file. Implement `canDecodeSequence(data:)` to opt into animated-image sequence loading.
 
 ```swift
 struct CustomImageDecoder: MediaImageDecoding {
-    func canDecode(data: Data) async -> Bool {
-        data.starts(with: Data("CUSTOM".utf8))
+    func canDecode(url: URL) async -> Bool {
+        // Inspect the local source file's contents or metadata.
+        false
     }
 
-    func canDecode(url: URL) async -> Bool { false }
-
-    func deserialize(_ data: Data) async throws -> MediaImage {
+    func decode(
+        _ data: Data,
+        options: ImageDecodingOptions,
+        maximumPixelDimension: Int?
+    ) async throws -> MediaImage {
         // Replace this with the custom format's actual image conversion.
-        throw ImageDeserializationError.invalidData
+        throw ImageDecodingError.invalidData
     }
 }
 
 let loader = DefaultMediaImageLoader(
-    downloader: DefaultImageDataDownloader(),
+    downloader: DefaultAssetDataDownloader(),
     decoders: [CustomImageDecoder(), ImageIOImageDecoder(), AVFoundationVideoFrameDecoder()],
     processor: ResizeImageProcessor(),
     cache: InMemoryImageCache()

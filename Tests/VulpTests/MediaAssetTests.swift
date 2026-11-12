@@ -2,28 +2,28 @@ import Foundation
 import Vulp
 import Testing
 
-struct CustomAssetHandle: ImageAssetHandle {
+struct CustomAsset: MediaAsset {
     let uniqueKey = "custom"
     let fallbackImage: MediaImage? = nil
 }
 
 @Test func remoteAssetUsesURLAsItsDefaultKey() {
     let url = URL(string: "https://example.com/image.png")!
-    let asset = RemoteImageAsset(url: url)
+    let asset = RemoteMediaAsset(url: url)
 
     #expect(asset.uniqueKey == url.absoluteString)
     #expect(asset.fallbackImage == nil)
 }
 
-@Test func assetHandleDoesNotRequireABuiltInSourceEnum() {
-    let asset: any ImageAssetHandle = CustomAssetHandle()
+@Test func assetDoesNotRequireABuiltInSourceEnum() {
+    let asset: any MediaAsset = CustomAsset()
 
     #expect(asset.uniqueKey == "custom")
 }
 
 @Test func assetAcceptsExplicitKeyAndFallback() async throws {
     let fallback = try await TestImageData.image()
-    let asset = DataImageAsset(
+    let asset = DataMediaAsset(
         data: TestImageData.png,
         uniqueKey: "avatar",
         fallbackImage: fallback
@@ -34,12 +34,12 @@ struct CustomAssetHandle: ImageAssetHandle {
 }
 
 @Test func requestBuildsCacheIdentifierFromInputs() throws {
-    let asset = RemoteImageAsset(
+    let asset = RemoteMediaAsset(
         url: URL(string: "https://example.com/a.png")!,
         uniqueKey: "avatar"
     )
     let request = try ImageLoadRequest(
-        assetHandle: asset,
+        asset: asset,
         targetSize: CGSize(width: 40, height: 30)
     )
 
@@ -47,11 +47,11 @@ struct CustomAssetHandle: ImageAssetHandle {
 }
 
 @Test func requestRejectsNegativeDimensions() {
-    let asset = DataImageAsset(data: TestImageData.png, uniqueKey: "fixture")
+    let asset = DataMediaAsset(data: TestImageData.png, uniqueKey: "fixture")
 
     #expect(throws: ImageLoadRequestError.invalidTargetSize) {
         try ImageLoadRequest(
-            assetHandle: asset,
+            asset: asset,
             targetSize: CGSize(width: -1, height: 10)
         )
     }

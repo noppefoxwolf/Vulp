@@ -1,14 +1,14 @@
 import CryptoKit
 import Foundation
 
-/// A disk cache for encoded image sources with idle-age and total-size limits.
-public actor DiskImageDataCache: ImageDataCache {
+/// A disk cache for encoded asset sources with idle-age and total-size limits.
+public actor DiskAssetDataCache: AssetDataCache {
     private let directory: URL
     private let maxSizeBytes: Int
     private let maxAge: TimeInterval
     private let agePruneInterval: TimeInterval = 60
     // Mutations await filesystem I/O, so a separate gate protects the byte-count bookkeeping.
-    private let writeGate = DiskImageDataCacheWriteGate()
+    private let writeGate = DiskAssetDataCacheWriteGate()
     private var currentSizeBytes: Int?
     private var lastPrunedAt: Date?
 
@@ -30,16 +30,22 @@ public actor DiskImageDataCache: ImageDataCache {
         self.maxAge = max(0, maxAge)
     }
 
-    public func data(forKey key: String) async -> Data? {
-        let fileURL = fileURL(forKey: key)
-        return await readCachedImageData(at: fileURL, maxAge: maxAge)
+    public func fileURL(forKey key: String) async -> URL? {
+        let url = cacheFileURL(forKey: key)
+        let fileManager = FileManager.default
+        guard let attributes = try? fileManager.attributesOfItem(atPath: url.path),
+              let modifiedAt = attributes[.modificationDate] as? Date,
+              Date().timeIntervalSince(modifiedAt) <= maxAge
+        else { return nil }
+        try? fileManager.setAttributes([.modificationDate: Date()], ofItemAtPath: url.path)
+        return url
     }
 
-    public func insert(_ data: Data, forKey key: String) async {
-        guard maxSizeBytes > 0, data.count <= maxSizeBytes else { return }
+    public func insert(_ data: Data, forKey key: String) async -> URL? {
+        guard maxSizeBytes > 0, data.count <= maxSizeBytes else { return nil }
         await writeGate.acquire()
         let directory = self.directory
-        let destination = fileURL(forKey: key)
+        let destination = cacheFileURL(forKey: key)
         let maxSizeBytes = self.maxSizeBytes
         let maxAge = self.maxAge
         let now = Date()
@@ -48,7 +54,7 @@ public actor DiskImageDataCache: ImageDataCache {
 
         if directoryReady {
             if currentSizeBytes == nil || shouldPruneExpiredFiles(at: now) {
-                currentSizeBytes = await pruneCachedImageData(
+                currentSizeBytes = await pruneCachedAssetData(
                     in: directory,
                     maxSizeBytes: maxSizeBytes,
                     maxAge: maxAge,
@@ -59,7 +65,7 @@ public actor DiskImageDataCache: ImageDataCache {
                 }
             }
 
-            let result = await writeCachedImageData(data, to: destination)
+            let result = await writeCachedAssetData(data, to: destination)
 
             if result.succeeded {
                 if let currentSizeBytes {
@@ -68,7 +74,7 @@ public actor DiskImageDataCache: ImageDataCache {
 
                 // Scan all entries only when the tracked total exceeds the configured limit.
                 if currentSizeBytes.map({ $0 > maxSizeBytes }) ?? true {
-                    currentSizeBytes = await pruneCachedImageData(
+                    currentSizeBytes = await pruneCachedAssetData(
                         in: directory,
                         maxSizeBytes: maxSizeBytes,
                         maxAge: maxAge,
@@ -81,12 +87,13 @@ public actor DiskImageDataCache: ImageDataCache {
             }
         }
         await writeGate.release()
+        return await fileURL(forKey: key)
     }
 
     public func removeData(forKey key: String) async {
-        let url = fileURL(forKey: key)
+        let url = cacheFileURL(forKey: key)
         await writeGate.acquire()
-        let result = await removeCachedImageData(at: url)
+        let result = await removeCachedAssetData(at: url)
         if result.succeeded, let currentSizeBytes {
             self.currentSizeBytes = max(0, currentSizeBytes - result.size)
         }
@@ -103,7 +110,7 @@ public actor DiskImageDataCache: ImageDataCache {
         await writeGate.release()
     }
 
-    private func fileURL(forKey key: String) -> URL {
+    private func cacheFileURL(forKey key: String) -> URL {
         let digest = SHA256.hash(data: Data(key.utf8))
             .map { String(format: "%02x", $0) }
             .joined()
@@ -116,7 +123,7 @@ public actor DiskImageDataCache: ImageDataCache {
     }
 }
 
-private actor DiskImageDataCacheWriteGate {
+private actor DiskAssetDataCacheWriteGate {
     private var isHeld = false
     private var waiters: [CheckedContinuation<Void, Never>] = []
 
@@ -140,21 +147,9 @@ private actor DiskImageDataCacheWriteGate {
     }
 }
 
-private extension DiskImageDataCache {
+private extension DiskAssetDataCache {
     @concurrent
-    func readCachedImageData(at url: URL, maxAge: TimeInterval) async -> Data? {
-        let fileManager = FileManager.default
-        guard let attributes = try? fileManager.attributesOfItem(atPath: url.path),
-              let modifiedAt = attributes[.modificationDate] as? Date,
-              Date().timeIntervalSince(modifiedAt) <= maxAge,
-              let data = try? Data(contentsOf: url)
-        else { return nil }
-        try? fileManager.setAttributes([.modificationDate: Date()], ofItemAtPath: url.path)
-        return data
-    }
-
-    @concurrent
-    func writeCachedImageData(_ data: Data, to destination: URL) async -> (succeeded: Bool, previousSize: Int) {
+    func writeCachedAssetData(_ data: Data, to destination: URL) async -> (succeeded: Bool, previousSize: Int) {
         let fileManager = FileManager.default
         do {
             let previousSize = (try? fileManager.attributesOfItem(atPath: destination.path)[.size] as? Int) ?? 0
@@ -166,7 +161,7 @@ private extension DiskImageDataCache {
     }
 
     @concurrent
-    func removeCachedImageData(at url: URL) async -> (succeeded: Bool, size: Int) {
+    func removeCachedAssetData(at url: URL) async -> (succeeded: Bool, size: Int) {
         let fileManager = FileManager.default
         let size = (try? fileManager.attributesOfItem(atPath: url.path)[.size] as? Int) ?? 0
         do {
@@ -178,7 +173,7 @@ private extension DiskImageDataCache {
     }
 
     @concurrent
-    func pruneCachedImageData(
+    func pruneCachedAssetData(
         in directory: URL,
         maxSizeBytes: Int,
         maxAge: TimeInterval,

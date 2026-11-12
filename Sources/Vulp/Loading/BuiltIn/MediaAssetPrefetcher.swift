@@ -4,7 +4,7 @@ import Foundation
 ///
 /// Starting an already-prefetched URL is a no-op. Stop URLs when they leave
 /// the window; completed tasks are removed automatically.
-public actor MediaImagePrefetcher {
+public actor MediaAssetPrefetcher {
     private struct Entry: Sendable {
         let id: UUID
         let task: Task<Void, Never>

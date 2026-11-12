@@ -2,34 +2,26 @@ import Foundation
 
 #if canImport(AVFoundation)
 import AVFoundation
-import UniformTypeIdentifiers
-/// Generates a thumbnail from a video URL without first downloading the complete asset.
-public struct AVFoundationVideoFrameDecoder: VideoFrameDecoding {
+/// Generates a thumbnail from a local source file managed by the asset data cache.
+public struct AVFoundationVideoFrameDecoder: MediaImageDecoding {
     public init() {}
 
     @concurrent
-    public func canDecode(data: Data) async -> Bool { false }
-
-    @concurrent
     public func canDecode(url: URL) async -> Bool {
-        guard !url.pathExtension.isEmpty,
-              let type = UTType(filenameExtension: url.pathExtension.lowercased())
-        else { return true }
-
-        if type.conforms(to: .movie) || type.conforms(to: .video) || type.conforms(to: .audiovisualContent) {
-            return true
-        }
-        if type.conforms(to: .image) { return false }
-        // Unknown extensions still get one direct AVFoundation attempt.
-        return true
+        let asset = AVURLAsset(url: url)
+        guard let tracks = try? await asset.load(.tracks) else { return false }
+        return tracks.contains(where: { $0.mediaType == .video })
     }
 
     @concurrent
-    public func decodeFrame(
+    public func decode(
         from url: URL,
-        at time: TimeInterval,
+        options: ImageDecodingOptions,
         maximumPixelDimension: Int?
     ) async throws -> MediaImage {
+        if case .frame(let index) = options {
+            throw MediaImageDecodingError.videoFrameIndexUnsupported(index)
+        }
         let asset = AVURLAsset(url: url)
         let tracks: [AVAssetTrack]
         do {
@@ -45,8 +37,7 @@ public struct AVFoundationVideoFrameDecoder: VideoFrameDecoding {
         if let maximumPixelDimension, maximumPixelDimension > 0 {
             generator.maximumSize = CGSize(width: maximumPixelDimension, height: maximumPixelDimension)
         }
-        let requestedTime = CMTime(seconds: time, preferredTimescale: 600)
-        let (cgImage, _) = try await generator.image(at: requestedTime)
+        let (cgImage, _) = try await generator.image(at: .zero)
 
         return cgImage
     }

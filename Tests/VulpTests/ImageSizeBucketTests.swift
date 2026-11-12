@@ -14,9 +14,9 @@ import Testing
 }
 
 @Test func imageSizeBucketUsesSameTierForNearbySizes() throws {
-    let asset = DataImageAsset(data: TestImageData.png, uniqueKey: "bucket")
-    let first = try ImageLoadRequest(assetHandle: asset, targetSize: CGSize(width: 300, height: 200))
-    let second = try ImageLoadRequest(assetHandle: asset, targetSize: CGSize(width: 320, height: 213))
+    let asset = DataMediaAsset(data: TestImageData.png, uniqueKey: "bucket")
+    let first = try ImageLoadRequest(asset: asset, targetSize: CGSize(width: 300, height: 200))
+    let second = try ImageLoadRequest(asset: asset, targetSize: CGSize(width: 320, height: 213))
 
     #expect(first.targetSize == CGSize(width: 362, height: 241))
     #expect(second.targetSize == first.targetSize)
@@ -25,7 +25,7 @@ import Testing
 
 @Test func requestScaleConvertsPointSizeToBucketedPixels() throws {
     let request = try MediaImageRequest(
-        assetHandle: DataImageAsset(data: TestImageData.png, uniqueKey: "scaled"),
+        asset: DataMediaAsset(data: TestImageData.png, uniqueKey: "scaled"),
         targetSize: CGSize(width: 100, height: 50),
         scale: 2
     )
@@ -36,7 +36,7 @@ import Testing
 @Test func requestRejectsInvalidScale() {
     #expect(throws: MediaImageRequestError.invalidTargetSize) {
         try MediaImageRequest(
-            assetHandle: DataImageAsset(data: TestImageData.png, uniqueKey: "invalid-scale"),
+            asset: DataMediaAsset(data: TestImageData.png, uniqueKey: "invalid-scale"),
             targetSize: CGSize(width: 100, height: 50),
             scale: 0
         )

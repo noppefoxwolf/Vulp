@@ -8,7 +8,7 @@ public typealias ImageLoadRequestError = MediaImageRequestError
 
 /// The first concrete request type used by the standard image-loading pipeline.
 public struct MediaImageRequest: MediaImageRequestProtocol {
-    public let assetHandle: any MediaAsset
+    public let asset: any MediaAsset
     public let targetSize: CGSize
     public let decodingOptions: ImageDecodingOptions
     public let cacheIdentifier: String
@@ -30,7 +30,7 @@ public struct MediaImageRequest: MediaImageRequestProtocol {
 
     /// Creates a request from a point size and display scale. Use the default scale of `1` for explicit pixel dimensions.
     public init(
-        assetHandle: any MediaAsset,
+        asset: any MediaAsset,
         targetSize: CGSize,
         scale: CGFloat = 1,
         decodingOptions: ImageDecodingOptions = .firstFrame,
@@ -54,14 +54,14 @@ public struct MediaImageRequest: MediaImageRequestProtocol {
             throw MediaImageRequestError.invalidTargetSize
         }
 
-        self.assetHandle = assetHandle
+        self.asset = asset
         self.targetSize = bucketedPixelSize
         self.decodingOptions = decodingOptions
         if let cacheIdentifier {
             self.cacheIdentifier = cacheIdentifier
         } else {
             self.cacheIdentifier = Self.makeCacheIdentifier(
-                asset: assetHandle,
+                asset: asset,
                 targetSize: bucketedPixelSize,
                 decodingOptions: decodingOptions
             )

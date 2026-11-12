@@ -5,9 +5,9 @@ struct SepiaImageDemoView: View {
     @State private var intensity = 0.85
     @State private var loader: DefaultMediaImageLoader
 
-    private let dataCache: DiskImageDataCache
+    private let dataCache: DiskAssetDataCache
 
-    init(dataCache: DiskImageDataCache) {
+    init(dataCache: DiskAssetDataCache) {
         self.dataCache = dataCache
         _loader = State(initialValue: Self.makeLoader(intensity: 0.85, dataCache: dataCache))
     }
@@ -15,7 +15,7 @@ struct SepiaImageDemoView: View {
     private var request: MediaImageRequest {
         get throws {
             try MediaImageRequest(
-                assetHandle: RemoteMediaAsset(
+                asset: RemoteMediaAsset(
                     url: URL(string: "https://picsum.photos/id/1025/1200/900")!,
                     uniqueKey: "example-sepia-image"
                 ),
@@ -75,10 +75,10 @@ struct SepiaImageDemoView: View {
         loader = Self.makeLoader(intensity: newIntensity, dataCache: dataCache)
     }
 
-    private static func makeLoader(intensity: Double, dataCache: DiskImageDataCache) -> DefaultMediaImageLoader {
+    private static func makeLoader(intensity: Double, dataCache: DiskAssetDataCache) -> DefaultMediaImageLoader {
         DefaultMediaImageLoader(
-            downloader: DefaultImageDataDownloader(),
-            decoder: ImageIOImageDecoder(),
+            downloader: DefaultAssetDataDownloader(),
+            decoders: [ImageIOImageDecoder()],
             processor: ResizeImageProcessor() + SepiaImageProcessor(intensity: intensity),
             cache: InMemoryImageCache(),
             dataCache: dataCache

@@ -1,7 +1,7 @@
 import Foundation
 import Vulp
 
-actor CountingDownloader: ImageDataDownloader {
+actor CountingAssetDownloader: AssetDataDownloader {
     private let delay: Duration
     private(set) var callCount = 0
     private(set) var cancellationCount = 0
@@ -24,7 +24,7 @@ actor CountingDownloader: ImageDataDownloader {
     }
 }
 
-struct FailingDownloader: ImageDataDownloader {
+struct FailingAssetDownloader: AssetDataDownloader {
     func download(from url: URL) async throws -> Data {
         throw TestDownloadFailure.failed
     }

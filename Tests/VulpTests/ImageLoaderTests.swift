@@ -5,14 +5,14 @@ import Testing
 @Test func imageLoaderCachesAndReturnsProcessedImage() async throws {
     let cache = InMemoryImageCache()
     let loader = DefaultMediaImageLoader(
-        downloader: DefaultImageDataDownloader(),
-        decoder: ImageIOImageDeserializer(),
+        downloader: DefaultAssetDataDownloader(),
+        decoders: [ImageIOImageDecoder()],
         processor: ResizeImageProcessor(),
         cache: cache
     )
-    let asset = DataImageAsset(data: TestImageData.png, uniqueKey: "fixture")
+    let asset = DataMediaAsset(data: TestImageData.png, uniqueKey: "fixture")
     let request = try ImageLoadRequest(
-        assetHandle: asset,
+        asset: asset,
         targetSize: CGSize(width: 6, height: 4)
     )
 
@@ -30,10 +30,10 @@ import Testing
     defer { try? FileManager.default.removeItem(at: directory) }
 
     let imageCache = InMemoryImageCache()
-    let dataCache = DiskImageDataCache(directory: directory)
+    let dataCache = DiskAssetDataCache(directory: directory)
     let loader = DefaultMediaImageLoader(
-        downloader: DefaultImageDataDownloader(),
-        decoder: ImageIOImageDeserializer(),
+        downloader: DefaultAssetDataDownloader(),
+        decoders: [ImageIOImageDecoder()],
         processor: ResizeImageProcessor(),
         cache: imageCache,
         dataCache: dataCache
@@ -47,22 +47,22 @@ import Testing
     await loader.clearCache()
 
     #expect(await imageCache.image(forKey: imageKey) == nil)
-    #expect(await dataCache.data(forKey: dataKey) == nil)
+    #expect(await dataCache.fileURL(forKey: dataKey) == nil)
 }
 
 @Test func imageLoaderDeduplicatesConcurrentRequests() async throws {
-    let downloader = CountingDownloader()
+    let downloader = CountingAssetDownloader()
     let loader = DefaultMediaImageLoader(
         downloader: downloader,
-        decoder: ImageIOImageDeserializer(),
+        decoders: [ImageIOImageDecoder()],
         processor: ResizeImageProcessor(),
         cache: InMemoryImageCache()
     )
-    let asset = RemoteImageAsset(
+    let asset = RemoteMediaAsset(
         url: URL(string: "https://example.com/shared-flight.png")!,
         uniqueKey: "shared-flight-\(UUID().uuidString)"
     )
-    let request = try ImageLoadRequest(assetHandle: asset, targetSize: .zero)
+    let request = try ImageLoadRequest(asset: asset, targetSize: .zero)
 
     async let first: Void = { _ = try await loader.load(request) }()
     async let second: Void = { _ = try await loader.load(request) }()
@@ -72,18 +72,18 @@ import Testing
 }
 
 @Test func prefetchLoadsImageIntoSharedCache() async throws {
-    let downloader = CountingDownloader()
+    let downloader = CountingAssetDownloader()
     let loader = DefaultMediaImageLoader(
         downloader: downloader,
-        decoder: ImageIOImageDeserializer(),
+        decoders: [ImageIOImageDecoder()],
         processor: ResizeImageProcessor(),
         cache: InMemoryImageCache()
     )
-    let asset = RemoteImageAsset(
+    let asset = RemoteMediaAsset(
         url: URL(string: "https://example.com/prefetch.png")!,
         uniqueKey: "prefetch-\(UUID().uuidString)"
     )
-    let request = try ImageLoadRequest(assetHandle: asset, targetSize: .zero)
+    let request = try ImageLoadRequest(asset: asset, targetSize: .zero)
 
     let prefetch = loader.prefetch(asset)
     await prefetch.value
@@ -93,14 +93,14 @@ import Testing
 }
 
 @Test func imagePrefetcherStartsEachURLOnceAcrossBatches() async throws {
-    let downloader = CountingDownloader(delay: .milliseconds(80))
+    let downloader = CountingAssetDownloader(delay: .milliseconds(80))
     let loader = DefaultMediaImageLoader(
         downloader: downloader,
-        decoder: ImageIOImageDeserializer(),
+        decoders: [ImageIOImageDecoder()],
         processor: ResizeImageProcessor(),
         cache: InMemoryImageCache()
     )
-    let prefetcher = MediaImagePrefetcher(loader: loader)
+    let prefetcher = MediaAssetPrefetcher(loader: loader)
     let firstURL = URL(string: "https://example.com/batch-first.png")!
     let secondURL = URL(string: "https://example.com/batch-second.png")!
 
@@ -112,14 +112,14 @@ import Testing
 }
 
 @Test func imagePrefetcherCancelsURLsThatLeaveThePrefetchWindow() async throws {
-    let downloader = CountingDownloader(delay: .seconds(2))
+    let downloader = CountingAssetDownloader(delay: .seconds(2))
     let loader = DefaultMediaImageLoader(
         downloader: downloader,
-        decoder: ImageIOImageDeserializer(),
+        decoders: [ImageIOImageDecoder()],
         processor: ResizeImageProcessor(),
         cache: InMemoryImageCache()
     )
-    let prefetcher = MediaImagePrefetcher(loader: loader)
+    let prefetcher = MediaAssetPrefetcher(loader: loader)
     let url = URL(string: "https://example.com/batch-cancel.png")!
 
     await prefetcher.startPrefetching(with: [url])
@@ -131,18 +131,18 @@ import Testing
 }
 
 @Test func imageLoadAcceptsExplicitTaskPriority() async throws {
-    let downloader = CountingDownloader()
+    let downloader = CountingAssetDownloader()
     let loader = DefaultMediaImageLoader(
         downloader: downloader,
-        decoder: ImageIOImageDeserializer(),
+        decoders: [ImageIOImageDecoder()],
         processor: ResizeImageProcessor(),
         cache: InMemoryImageCache()
     )
-    let asset = RemoteImageAsset(
+    let asset = RemoteMediaAsset(
         url: URL(string: "https://example.com/priority.png")!,
         uniqueKey: "priority-\(UUID().uuidString)"
     )
-    let request = try ImageLoadRequest(assetHandle: asset, targetSize: .zero)
+    let request = try ImageLoadRequest(asset: asset, targetSize: .zero)
 
     _ = try await loader.load(request, priority: .background)
 
@@ -150,18 +150,18 @@ import Testing
 }
 
 @Test func cancellingPrefetchWaiterDoesNotCancelSharedLoad() async throws {
-    let downloader = CountingDownloader(delay: .milliseconds(250))
+    let downloader = CountingAssetDownloader(delay: .milliseconds(250))
     let loader = DefaultMediaImageLoader(
         downloader: downloader,
-        decoder: ImageIOImageDeserializer(),
+        decoders: [ImageIOImageDecoder()],
         processor: ResizeImageProcessor(),
         cache: InMemoryImageCache()
     )
-    let asset = RemoteImageAsset(
+    let asset = RemoteMediaAsset(
         url: URL(string: "https://example.com/prefetch-cancel.png")!,
         uniqueKey: "prefetch-cancel-\(UUID().uuidString)"
     )
-    let request = try ImageLoadRequest(assetHandle: asset, targetSize: .zero)
+    let request = try ImageLoadRequest(asset: asset, targetSize: .zero)
     let prefetch = loader.prefetch(asset)
     let visibleLoad = Task { try await loader.load(request) }
     try await Task.sleep(for: .milliseconds(30))
@@ -174,18 +174,18 @@ import Testing
 }
 
 @Test func cancellingOnlyPrefetchCancelsUnderlyingLoadAndAllowsRetry() async throws {
-    let downloader = CountingDownloader(delay: .seconds(2))
+    let downloader = CountingAssetDownloader(delay: .seconds(2))
     let loader = DefaultMediaImageLoader(
         downloader: downloader,
-        decoder: ImageIOImageDeserializer(),
+        decoders: [ImageIOImageDecoder()],
         processor: ResizeImageProcessor(),
         cache: InMemoryImageCache()
     )
-    let asset = RemoteImageAsset(
+    let asset = RemoteMediaAsset(
         url: URL(string: "https://example.com/prefetch-only-cancel.png")!,
         uniqueKey: "prefetch-only-cancel-\(UUID().uuidString)"
     )
-    let request = try ImageLoadRequest(assetHandle: asset, targetSize: .zero)
+    let request = try ImageLoadRequest(asset: asset, targetSize: .zero)
     let prefetch = loader.prefetch(asset)
     try await Task.sleep(for: .milliseconds(50))
 
@@ -199,19 +199,19 @@ import Testing
 }
 
 @Test func imageLoaderDeduplicatesConcurrentAssetDownloadsAcrossRequests() async throws {
-    let downloader = CountingDownloader(delay: .milliseconds(250))
+    let downloader = CountingAssetDownloader(delay: .milliseconds(250))
     let loader = DefaultMediaImageLoader(
         downloader: downloader,
-        decoder: ImageIOImageDeserializer(),
+        decoders: [ImageIOImageDecoder()],
         processor: ResizeImageProcessor(),
         cache: InMemoryImageCache()
     )
-    let asset = RemoteImageAsset(
+    let asset = RemoteMediaAsset(
         url: URL(string: "https://example.com/shared-asset.png")!,
         uniqueKey: "shared-asset-\(UUID().uuidString)"
     )
-    let smallRequest = try ImageLoadRequest(assetHandle: asset, targetSize: CGSize(width: 8, height: 8))
-    let largeRequest = try ImageLoadRequest(assetHandle: asset, targetSize: CGSize(width: 16, height: 16))
+    let smallRequest = try ImageLoadRequest(asset: asset, targetSize: CGSize(width: 8, height: 8))
+    let largeRequest = try ImageLoadRequest(asset: asset, targetSize: CGSize(width: 16, height: 16))
 
     async let small: Void = { _ = try await loader.load(smallRequest) }()
     async let large: Void = { _ = try await loader.load(largeRequest) }()
@@ -224,17 +224,17 @@ import Testing
     let fallback = try await TestImageData.image()
     let cache = LRUImageCache()
     let loader = DefaultMediaImageLoader(
-        downloader: FailingDownloader(),
-        decoder: ImageIOImageDeserializer(),
+        downloader: FailingAssetDownloader(),
+        decoders: [ImageIOImageDecoder()],
         processor: ResizeImageProcessor(),
         cache: cache
     )
-    let asset = RemoteImageAsset(
+    let asset = RemoteMediaAsset(
         url: URL(string: "https://example.com/missing.png")!,
         uniqueKey: "with-fallback",
         fallbackImage: fallback
     )
-    let request = try ImageLoadRequest(assetHandle: asset, targetSize: .zero)
+    let request = try ImageLoadRequest(asset: asset, targetSize: .zero)
 
     let result = try await loader.load(request)
 
@@ -243,18 +243,18 @@ import Testing
 }
 
 @Test func cancellingOneWaiterDoesNotCancelTheSharedLoad() async throws {
-    let downloader = CountingDownloader(delay: .milliseconds(250))
+    let downloader = CountingAssetDownloader(delay: .milliseconds(250))
     let loader = DefaultMediaImageLoader(
         downloader: downloader,
-        decoder: ImageIOImageDeserializer(),
+        decoders: [ImageIOImageDecoder()],
         processor: ResizeImageProcessor(),
         cache: InMemoryImageCache()
     )
-    let asset = RemoteImageAsset(
+    let asset = RemoteMediaAsset(
         url: URL(string: "https://example.com/cancel-waiter.png")!,
         uniqueKey: "cancel-waiter-\(UUID().uuidString)"
     )
-    let request = try ImageLoadRequest(assetHandle: asset, targetSize: .zero)
+    let request = try ImageLoadRequest(asset: asset, targetSize: .zero)
     let leader = Task { _ = try await loader.load(request) }
     try await Task.sleep(for: .milliseconds(30))
     let waiter = Task { _ = try await loader.load(request) }

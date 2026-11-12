@@ -5,7 +5,7 @@ import CoreGraphics
 public enum MediaImageLoader {
     /// A shared loader using URLSession, ImageIO, AVFoundation, image resizing, and in-memory caching.
     public static let `default`: DefaultMediaImageLoader = DefaultMediaImageLoader(
-        downloader: DefaultImageDataDownloader(),
+        downloader: DefaultAssetDataDownloader(),
         decoders: [ImageIOImageDecoder(), AVFoundationVideoFrameDecoder()],
         processor: ResizeImageProcessor(),
         cache: InMemoryImageCache()
@@ -14,7 +14,7 @@ public enum MediaImageLoader {
 
 
 public struct DefaultMediaImageLoader: MediaImageLoading {
-    private let downloader: any ImageDataDownloader
+    private let downloader: any AssetDataDownloader
     private let decoders: [any MediaImageDecoding]
     private let processor: any ImageProcessor
     private let cache: any ImageCache
@@ -29,12 +29,12 @@ public struct DefaultMediaImageLoader: MediaImageLoading {
     }
 
     /// Creates a loader with an ordered list of decoders.
-    public init<Downloader: ImageDataDownloader, Processor: ImageProcessor, Cache: ImageCache>(
+    public init<Downloader: AssetDataDownloader, Processor: ImageProcessor, Cache: ImageCache>(
         downloader: Downloader,
         decoders: [any MediaImageDecoding],
         processor: Processor,
         cache: Cache,
-        dataCache: any ImageDataCache = DiskImageDataCache()
+        dataCache: any AssetDataCache = DiskAssetDataCache()
     ) {
         self.downloader = downloader
         self.decoders = decoders
@@ -43,46 +43,26 @@ public struct DefaultMediaImageLoader: MediaImageLoading {
         self.assetDataResultCache = AssetDataResultCache(dataCache: dataCache)
     }
 
-    /// Convenience initializer for a single decoder.
-    public init<Downloader: ImageDataDownloader, Processor: ImageProcessor, Cache: ImageCache>(
-        downloader: Downloader,
-        decoder: any MediaImageDecoding,
-        processor: Processor,
-        cache: Cache,
-        dataCache: any ImageDataCache = DiskImageDataCache()
-    ) {
-        self.init(
-            downloader: downloader,
-            decoders: [decoder],
-            processor: processor,
-            cache: cache,
-            dataCache: dataCache
-        )
-    }
-
-    @concurrent
-    public func load<Request: MediaImageRequestProtocol>(_ request: Request) async throws -> MediaImage {
-        try await load(request, priority: .userInitiated)
-    }
-
     @concurrent
     public func load<Request: MediaImageRequestProtocol>(
         _ request: Request,
-        priority: TaskPriority
+        priority: TaskPriority = .userInitiated
     ) async throws -> MediaImage {
         try await load(request, process: { image in
             try await processor.process(image, for: request)
         }, priority: priority)
     }
 
-    /// Prefetches only the encoded source data, without decoding or processing an image.
+    /// Prefetches only the encoded source asset, without decoding or processing an image.
     public func prefetch(
         _ asset: any MediaAsset,
         priority: TaskPriority
     ) -> Task<Void, Never> {
         let task = Task(priority: priority) { [self] in
             do {
-                _ = try await data(for: asset, priority: priority)
+                if await assetDataResultCache.fileURL(forKey: asset.uniqueKey) == nil {
+                    _ = try await data(for: asset, priority: priority)
+                }
             } catch is CancellationError {
                 // Cancellation is expected when a prefetched item leaves the
                 // collection's visible prefetch window.
@@ -126,35 +106,25 @@ public struct DefaultMediaImageLoader: MediaImageLoading {
             return Int(longestTargetEdge.rounded(.up))
         }()
 
-        let asset = request.assetHandle
+        let asset = request.asset
         let image: MediaImage
         let usedFallback: Bool
         do {
             try Task.checkCancellation()
-            if let url = asset.directURL, let urlDecoder = await decoder(for: url) {
-                do {
-                    image = try await decodeVideoFrame(
-                        from: url,
-                        using: urlDecoder,
-                        request: request,
-                        maximumPixelDimension: maximumPixelDimension
-                    )
-                } catch MediaImageDecodingError.unsupportedSource {
-                    image = try await decodeImageData(
-                        for: asset,
-                        request: request,
-                        maximumPixelDimension: maximumPixelDimension,
-                        priority: priority
-                    )
-                }
-            } else {
-                image = try await decodeImageData(
-                    for: asset,
-                    request: request,
-                    maximumPixelDimension: maximumPixelDimension,
-                    priority: priority
-                )
+            let (sourceURL, isTemporary) = try await sourceFileURL(for: asset, priority: priority)
+            defer {
+                if isTemporary { try? FileManager.default.removeItem(at: sourceURL) }
             }
+            let sourceDecoders = await decoders(for: sourceURL)
+            guard !sourceDecoders.isEmpty else {
+                throw MediaImageDecodingError.unsupportedSource
+            }
+            image = try await decode(
+                from: sourceURL,
+                using: sourceDecoders,
+                request: request,
+                maximumPixelDimension: maximumPixelDimension
+            )
             usedFallback = false
         } catch {
             try Task.checkCancellation()
@@ -167,58 +137,39 @@ public struct DefaultMediaImageLoader: MediaImageLoading {
         return (try await process(image), usedFallback)
     }
 
-    private func decodeVideoFrame<Request: MediaImageRequestProtocol>(
+    private func decode<Request: MediaImageRequestProtocol>(
         from url: URL,
-        using decoder: any MediaImageDecoding,
+        using decoders: [any MediaImageDecoding],
         request: Request,
         maximumPixelDimension: Int?
     ) async throws -> MediaImage {
-        if case .frame(let index) = request.decodingOptions {
-            throw MediaImageDecodingError.videoFrameIndexUnsupported(index)
+        for decoder in decoders {
+            do {
+                return try await decoder.decode(
+                    from: url,
+                    options: request.decodingOptions,
+                    maximumPixelDimension: maximumPixelDimension
+                )
+            } catch MediaImageDecodingError.unsupportedSource {
+                continue
+            }
         }
-        return try await decoder.decodeVideoFrame(
-            from: url,
-            at: 0,
-            maximumPixelDimension: maximumPixelDimension
-        )
-    }
-
-    private func decodeImageData<Request: MediaImageRequestProtocol>(
-        for asset: any MediaAsset,
-        request: Request,
-        maximumPixelDimension: Int?,
-        priority: TaskPriority
-    ) async throws -> MediaImage {
-        let data = try await data(for: asset, priority: priority)
-        try Task.checkCancellation()
-        guard let dataDecoder = await decoder(for: data) else {
-            throw MediaImageDecodingError.unsupportedSource
-        }
-        return try await dataDecoder.deserialize(
-            data,
-            options: request.decodingOptions,
-            maximumPixelDimension: maximumPixelDimension
-        )
+        throw MediaImageDecodingError.unsupportedSource
     }
 
     private func data(
         for asset: any MediaAsset,
         priority: TaskPriority = .userInitiated
     ) async throws -> Data {
-        if let cachedResult = await assetDataResultCache.result(forKey: asset.uniqueKey) {
-            switch cachedResult {
-            case .success(let cached):
-                return cached
-            case .failure(let error):
-                guard shouldRetry(after: error) else { throw error }
-                await assetDataResultCache.removeFailure(forKey: asset.uniqueKey)
-            }
+        if let error = await assetDataResultCache.failure(forKey: asset.uniqueKey) {
+            guard shouldRetry(after: error) else { throw error }
+            await assetDataResultCache.removeFailure(forKey: asset.uniqueKey)
         }
 
         return try await assetDataFetchDeduper.load(forKey: asset.uniqueKey, priority: priority) { [self] in
             do {
                 let downloaded = try await asset.loadData(using: downloader)
-                await assetDataResultCache.insert(downloaded, forKey: asset.uniqueKey)
+                _ = await assetDataResultCache.insert(downloaded, forKey: asset.uniqueKey)
                 return downloaded
             } catch {
                 if !isCancellation(error) {
@@ -229,8 +180,28 @@ public struct DefaultMediaImageLoader: MediaImageLoading {
         }
     }
 
+    @concurrent
+    private func sourceFileURL(
+        for asset: any MediaAsset,
+        priority: TaskPriority
+    ) async throws -> (URL, isTemporary: Bool) {
+        if let cachedURL = await assetDataResultCache.fileURL(forKey: asset.uniqueKey) {
+            return (cachedURL, false)
+        }
+
+        let data = try await data(for: asset, priority: priority)
+        if let cachedURL = await assetDataResultCache.fileURL(forKey: asset.uniqueKey) {
+            return (cachedURL, false)
+        }
+
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("Vulp-\(UUID().uuidString)", isDirectory: false)
+        try data.write(to: url, options: .atomic)
+        return (url, true)
+    }
+
     private func shouldRetry(after error: Error) -> Bool {
-        if let downloadError = error as? ImageDownloadError {
+        if let downloadError = error as? AssetDownloadError {
             switch downloadError {
             case .unsupportedAsset, .exceedsMaximumSize:
                 return false
@@ -248,41 +219,39 @@ public struct DefaultMediaImageLoader: MediaImageLoading {
         error is CancellationError || (error as? URLError)?.code == .cancelled
     }
 
-    private func decoder(for data: Data) async -> (any MediaImageDecoding)? {
-        for decoder in decoders where await decoder.canDecode(data: data) {
+    private func sequenceCapableDecoder(for url: URL, data: Data) async -> (any MediaImageDecoding)? {
+        for decoder in decoders {
+            guard await decoder.canDecode(url: url),
+                  await decoder.canDecodeSequence(data: data)
+            else { continue }
             return decoder
         }
         return nil
     }
 
-    private func sequenceCapableDecoder(for data: Data) async -> (any MediaImageDecoding)? {
-        for decoder in decoders where await decoder.canDecodeSequence(data: data) {
-            return decoder
-        }
-        return nil
-    }
-
-    private func decoder(for url: URL) async -> (any MediaImageDecoding)? {
+    private func decoders(for url: URL) async -> [any MediaImageDecoding] {
+        var matchingDecoders: [any MediaImageDecoding] = []
         for decoder in decoders where await decoder.canDecode(url: url) {
-            return decoder
+            matchingDecoders.append(decoder)
         }
-        return nil
+        return matchingDecoders
     }
 }
 
 extension DefaultMediaImageLoader: MediaImageSequenceLoading {
     @concurrent
     public func loadSequence(from asset: any MediaAsset) async throws -> ImageSequence {
-        if let url = asset.directURL, await decoder(for: url) != nil {
+        let (sourceURL, isTemporary) = try await sourceFileURL(for: asset, priority: .userInitiated)
+        defer {
+            if isTemporary { try? FileManager.default.removeItem(at: sourceURL) }
+        }
+        let sourceData = try Data(contentsOf: sourceURL)
+        try Task.checkCancellation()
+        guard let sequenceCapableDecoder = await sequenceCapableDecoder(for: sourceURL, data: sourceData) else {
             throw ImageSequenceError.unsupportedMediaSource
         }
-        let data = try await data(for: asset)
+        let frameDurations = try await sequenceCapableDecoder.frameDurations(in: sourceData)
         try Task.checkCancellation()
-        guard let sequenceCapableDecoder = await sequenceCapableDecoder(for: data) else {
-            throw ImageSequenceError.unsupportedMediaSource
-        }
-        let frameDurations = try await sequenceCapableDecoder.frameDurations(in: data)
-        try Task.checkCancellation()
-        return ImageSequence(identifier: asset.uniqueKey, data: data, frameDurations: frameDurations)
+        return ImageSequence(identifier: asset.uniqueKey, data: sourceData, frameDurations: frameDurations)
     }
 }

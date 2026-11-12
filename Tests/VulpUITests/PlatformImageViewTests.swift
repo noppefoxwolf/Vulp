@@ -8,7 +8,11 @@ private enum PlatformImageFixture {
         let data = Data(base64Encoded:
             "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jZ1sAAAAASUVORK5CYII="
         )!
-        return try await ImageIOImageDeserializer().deserialize(data)
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("VulpUITests-\(UUID().uuidString)", isDirectory: false)
+        defer { try? FileManager.default.removeItem(at: url) }
+        try data.write(to: url)
+        return try await ImageIOImageDecoder().decode(from: url, options: .firstFrame, maximumPixelDimension: nil)
     }
 }
 

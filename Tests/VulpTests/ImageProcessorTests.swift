@@ -5,8 +5,8 @@ import Testing
 
 @Test func imageProcessorChainRunsProcessorsInOrder() async throws {
     let source = try await TestImageData.image()
-    let asset = DataImageAsset(data: TestImageData.png, uniqueKey: "processor-chain")
-    let request = try ImageLoadRequest(assetHandle: asset, targetSize: .zero)
+    let asset = DataMediaAsset(data: TestImageData.png, uniqueKey: "processor-chain")
+    let request = try ImageLoadRequest(asset: asset, targetSize: .zero)
     let recorder = ProcessorCallRecorder()
     let processor = NamedImageProcessor(name: "first", recorder: recorder)
         + NamedImageProcessor(name: "second", recorder: recorder)
@@ -19,9 +19,9 @@ import Testing
 
 @Test func resizeProcessorDoesNotUpscaleSmallSourceToBucketSize() async throws {
     let source = try await TestImageData.image()
-    let asset = DataImageAsset(data: TestImageData.png, uniqueKey: "fixture")
+    let asset = DataMediaAsset(data: TestImageData.png, uniqueKey: "fixture")
     let request = try ImageLoadRequest(
-        assetHandle: asset,
+        asset: asset,
         targetSize: CGSize(width: 12, height: 8)
     )
 
@@ -33,9 +33,9 @@ import Testing
 
 @Test func resizeProcessorDownsamplesWithoutChangingSourceAspectRatio() async throws {
     let source = try processorFixtureImage()
-    let asset = DataImageAsset(data: TestImageData.png, uniqueKey: "fit-resize")
+    let asset = DataMediaAsset(data: TestImageData.png, uniqueKey: "fit-resize")
     let request = try ImageLoadRequest(
-        assetHandle: asset,
+        asset: asset,
         targetSize: CGSize(width: 8, height: 8)
     )
 
@@ -47,9 +47,9 @@ import Testing
 
 @Test func resizeProcessorReturnsSourceForZeroSizedRequest() async throws {
     let source = try await TestImageData.image()
-    let asset = DataImageAsset(data: TestImageData.png, uniqueKey: "fixture")
+    let asset = DataMediaAsset(data: TestImageData.png, uniqueKey: "fixture")
     let request = try ImageLoadRequest(
-        assetHandle: asset,
+        asset: asset,
         targetSize: .zero
     )
 

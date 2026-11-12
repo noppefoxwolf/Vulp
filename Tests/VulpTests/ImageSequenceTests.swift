@@ -43,7 +43,7 @@ private enum AnimatedGIFFixture {
     )!
 }
 
-private actor RecordingSequenceDownloader: ImageDataDownloader {
+private actor RecordingAssetDownloader: AssetDataDownloader {
     private(set) var requestCount = 0
     let data: Data
 
@@ -58,20 +58,24 @@ private actor RecordingSequenceDownloader: ImageDataDownloader {
 }
 
 @Test func imageIODecoderReportsAndSelectsSequenceFrames() async throws {
-    let deserializer = ImageIOImageDeserializer()
+    let decoder = ImageIOImageDecoder()
 
-    #expect(try await deserializer.frameCount(in: AnimatedGIFFixture.data) == 2)
-    let frameDurations = try await deserializer.frameDurations(in: AnimatedGIFFixture.data)
+    #expect(try await decoder.frameCount(in: AnimatedGIFFixture.data) == 2)
+    let frameDurations = try await decoder.frameDurations(in: AnimatedGIFFixture.data)
     #expect(frameDurations.count == 2)
     #expect(frameDurations.allSatisfy { $0 > 0 })
 
-    let firstFrame = try await deserializer.deserialize(
-        AnimatedGIFFixture.data,
-        options: .frame(index: 0)
+    let url = try TestImageData.fileURL(for: AnimatedGIFFixture.data)
+    defer { try? FileManager.default.removeItem(at: url) }
+    let firstFrame = try await decoder.decode(
+        from: url,
+        options: .frame(index: 0),
+        maximumPixelDimension: nil
     )
-    let secondFrame = try await deserializer.deserialize(
-        AnimatedGIFFixture.data,
-        options: .frame(index: 1)
+    let secondFrame = try await decoder.decode(
+        from: url,
+        options: .frame(index: 1),
+        maximumPixelDimension: nil
     )
 
     #expect(firstFrame.width == 16)
@@ -83,15 +87,15 @@ private actor RecordingSequenceDownloader: ImageDataDownloader {
 func imageIODecoderReportsAndSelectsAPNGAndWebPFrames(filename: String) async throws {
     let url = try #require(Bundle.module.url(forResource: filename, withExtension: nil, subdirectory: "Fixtures"))
     let data = try Data(contentsOf: url)
-    let deserializer = ImageIOImageDeserializer()
+    let decoder = ImageIOImageDecoder()
 
-    #expect(try await deserializer.frameCount(in: data) == 2)
-    let frameDurations = try await deserializer.frameDurations(in: data)
+    #expect(try await decoder.frameCount(in: data) == 2)
+    let frameDurations = try await decoder.frameDurations(in: data)
     #expect(frameDurations.count == 2)
     #expect(frameDurations.allSatisfy { $0 > 0 })
 
-    let firstFrame = try await deserializer.deserialize(data, options: .frame(index: 0))
-    let secondFrame = try await deserializer.deserialize(data, options: .frame(index: 1))
+    let firstFrame = try await decoder.decode(from: url, options: .frame(index: 0), maximumPixelDimension: nil)
+    let secondFrame = try await decoder.decode(from: url, options: .frame(index: 1), maximumPixelDimension: nil)
 
     #expect(firstFrame.width == 16)
     #expect(secondFrame.width == 16)
@@ -99,9 +103,11 @@ func imageIODecoderReportsAndSelectsAPNGAndWebPFrames(filename: String) async th
 }
 
 @Test func imageSequenceRejectsAnOutOfBoundsFrameIndex() async throws {
-    let sequence = try await ImageIOImageDeserializer().loadSequence(
-        AnimatedGIFFixture.data,
-        identifier: "fixture"
+    let durations = try await ImageIOImageDecoder().frameDurations(in: AnimatedGIFFixture.data)
+    let sequence = ImageSequence(
+        identifier: "fixture",
+        data: AnimatedGIFFixture.data,
+        frameDurations: durations
     )
 
     #expect(throws: ImageSequenceError.invalidFrameIndex(2)) {
@@ -110,15 +116,15 @@ func imageIODecoderReportsAndSelectsAPNGAndWebPFrames(filename: String) async th
 }
 
 @Test func imageSequenceFrameLoaderLoadsFramesOnDemand() async throws {
-    let downloader = RecordingSequenceDownloader(data: AnimatedGIFFixture.data)
+    let downloader = RecordingAssetDownloader(data: AnimatedGIFFixture.data)
     let cache = InMemoryImageCache()
     let loader = DefaultMediaImageLoader(
         downloader: downloader,
-        decoder: ImageIOImageDeserializer(),
+        decoders: [ImageIOImageDecoder()],
         processor: ResizeImageProcessor(),
         cache: cache
     )
-    let asset = RemoteImageAsset(
+    let asset = RemoteMediaAsset(
         url: URL(string: "https://example.com/animated.gif")!,
         uniqueKey: "animated-fixture-\(UUID().uuidString)"
     )
@@ -145,10 +151,10 @@ func imageIODecoderReportsAndSelectsAPNGAndWebPFrames(filename: String) async th
 }
 
 @Test func imageSequenceFrameLoaderPrefetchesFollowingPlaybackFrames() async throws {
-    let downloader = RecordingSequenceDownloader(data: AnimatedGIFFixture.data)
+    let downloader = RecordingAssetDownloader(data: AnimatedGIFFixture.data)
     let loader = DefaultMediaImageLoader(
         downloader: downloader,
-        decoder: ImageIOImageDeserializer(),
+        decoders: [ImageIOImageDecoder()],
         processor: ResizeImageProcessor(),
         cache: InMemoryImageCache()
     )
@@ -170,14 +176,14 @@ func imageIODecoderReportsAndSelectsAPNGAndWebPFrames(filename: String) async th
 }
 
 @Test func imageSequenceLoaderFetchesSourceOnceAndCachesEachFrame() async throws {
-    let downloader = RecordingSequenceDownloader(data: AnimatedGIFFixture.data)
+    let downloader = RecordingAssetDownloader(data: AnimatedGIFFixture.data)
     let loader = DefaultMediaImageLoader(
         downloader: downloader,
-        decoder: ImageIOImageDeserializer(),
+        decoders: [ImageIOImageDecoder()],
         processor: ResizeImageProcessor(),
         cache: InMemoryImageCache()
     )
-    let asset = RemoteImageAsset(
+    let asset = RemoteMediaAsset(
         url: URL(string: "https://example.com/animated.gif")!,
         uniqueKey: "animated-fixture-\(UUID().uuidString)"
     )

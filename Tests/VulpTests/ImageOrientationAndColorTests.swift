@@ -14,7 +14,9 @@ func decoderAppliesEXIFOrientation(maximumPixelDimension: Int?) async throws {
     CGImageDestinationAddImage(destination, image, [kCGImagePropertyOrientation: 6] as CFDictionary)
     #expect(CGImageDestinationFinalize(destination))
 
-    let result = try await ImageIOImageDecoder().deserialize(data as Data, options: .firstFrame,
+    let url = try TestImageData.fileURL(for: data as Data)
+    defer { try? FileManager.default.removeItem(at: url) }
+    let result = try await ImageIOImageDecoder().decode(from: url, options: .firstFrame,
         maximumPixelDimension: maximumPixelDimension)
     #expect(result.height == result.width * 2)
 }
@@ -32,9 +34,15 @@ func resizeConvertsNonRGBImages(cmyk: Bool) async throws {
     let destination = try #require(CGImageDestinationCreateWithData(data, "public.tiff" as CFString, 1, nil))
     CGImageDestinationAddImage(destination, source, nil)
     #expect(CGImageDestinationFinalize(destination))
-    let image = try await ImageIOImageDecoder().deserialize(data as Data)
+    let url = try TestImageData.fileURL(for: data as Data)
+    defer { try? FileManager.default.removeItem(at: url) }
+    let image = try await ImageIOImageDecoder().decode(
+        from: url,
+        options: .firstFrame,
+        maximumPixelDimension: nil
+    )
     let asset = await DataMediaAsset(data: data as Data)
-    let request = try MediaImageRequest(assetHandle: asset,
+    let request = try MediaImageRequest(asset: asset,
         targetSize: CGSize(width: 16, height: 16))
     let result = try await ResizeImageProcessor().process(image, for: request)
     #expect(result.width == 16)
