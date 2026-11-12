@@ -12,7 +12,6 @@ public enum MediaImageLoader {
     )
 }
 
-public typealias ImageLoader = MediaImageLoader
 
 public struct DefaultMediaImageLoader: MediaImageLoading {
     private let downloader: any ImageDataDownloader
