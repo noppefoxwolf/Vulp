@@ -18,14 +18,14 @@ public struct DefaultMediaImageLoader: MediaImageLoading {
     private let decoders: [any MediaImageDecoding]
     private let processor: any ImageProcessor
     private let cache: any ImageCache
-    private let dataCache: any ImageDataCache
+    private let assetDataResultCache: AssetDataResultCache
     private let fetchDeduper = TaskDeduper<String, MediaImage>()
     private let assetDataFetchDeduper = TaskDeduper<String, Data>()
 
     /// Removes all decoded images and encoded source data stored by this loader.
     public func clearCache() async {
         await cache.removeAllImages()
-        await dataCache.removeAllData()
+        await assetDataResultCache.removeAll()
     }
 
     /// Creates a loader with an ordered list of decoders.
@@ -40,7 +40,7 @@ public struct DefaultMediaImageLoader: MediaImageLoading {
         self.decoders = decoders
         self.processor = processor
         self.cache = cache
-        self.dataCache = dataCache
+        self.assetDataResultCache = AssetDataResultCache(dataCache: dataCache)
     }
 
     /// Convenience initializer for a single decoder.
@@ -205,14 +205,47 @@ public struct DefaultMediaImageLoader: MediaImageLoading {
         for asset: any MediaAsset,
         priority: TaskPriority = .userInitiated
     ) async throws -> Data {
-        if let cached = await dataCache.data(forKey: asset.uniqueKey) {
-            return cached
+        if let cachedResult = await assetDataResultCache.result(forKey: asset.uniqueKey) {
+            switch cachedResult {
+            case .success(let cached):
+                return cached
+            case .failure(let error):
+                guard shouldRetry(after: error) else { throw error }
+                await assetDataResultCache.removeFailure(forKey: asset.uniqueKey)
+            }
         }
+
         return try await assetDataFetchDeduper.load(forKey: asset.uniqueKey, priority: priority) { [self] in
-            let downloaded = try await asset.loadData(using: downloader)
-            await dataCache.insert(downloaded, forKey: asset.uniqueKey)
-            return downloaded
+            do {
+                let downloaded = try await asset.loadData(using: downloader)
+                await assetDataResultCache.insert(downloaded, forKey: asset.uniqueKey)
+                return downloaded
+            } catch {
+                if !isCancellation(error) {
+                    await assetDataResultCache.insertFailure(error, forKey: asset.uniqueKey)
+                }
+                throw error
+            }
         }
+    }
+
+    private func shouldRetry(after error: Error) -> Bool {
+        if let downloadError = error as? ImageDownloadError {
+            switch downloadError {
+            case .unsupportedAsset, .exceedsMaximumSize:
+                return false
+            case .unacceptableStatusCode(let statusCode):
+                return statusCode == 408 || statusCode == 425 || statusCode == 429 || (500..<600).contains(statusCode)
+            case .invalidResponse:
+                return true
+            }
+        }
+
+        return true
+    }
+
+    private func isCancellation(_ error: Error) -> Bool {
+        error is CancellationError || (error as? URLError)?.code == .cancelled
     }
 
     private func decoder(for data: Data) async -> (any MediaImageDecoding)? {
