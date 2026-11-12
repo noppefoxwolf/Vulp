@@ -1,9 +1,5 @@
 import Foundation
 
-#if canImport(FoundationNetworking)
-import FoundationNetworking
-#endif
-
 public protocol ImageDataDownloader: Sendable {
     @concurrent
     func download(from url: URL) async throws -> Data
