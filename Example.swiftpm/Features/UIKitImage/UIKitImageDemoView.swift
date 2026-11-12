@@ -4,7 +4,7 @@ import VulpUI
 
 private typealias UIKitExampleLoader = DefaultMediaImageLoader<
     DefaultImageDataDownloader,
-    ImageProcessorChain<ResizeImageProcessor, ImageSizeDebugProcessor>,
+    DemoImageProcessorPipeline<ResizeImageProcessor, ImageSizeDebugProcessor>,
     InMemoryImageCache
 >
 
@@ -169,7 +169,10 @@ final class UIKitImageDemoViewController: UIViewController {
         UIKitExampleLoader(
             downloader: DefaultImageDataDownloader(),
             decoder: ImageIOImageDecoder(),
-            processor: ResizeImageProcessor().then(ImageSizeDebugProcessor(isEnabled: showsImageSize)),
+            processor: DemoImageProcessorPipeline(
+                ResizeImageProcessor(),
+                then: ImageSizeDebugProcessor(isEnabled: showsImageSize)
+            ),
             cache: InMemoryImageCache(),
             dataCache: dataCache
         )

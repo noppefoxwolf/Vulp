@@ -1,7 +1,7 @@
 import VulpUI
 import SwiftUI
 
-private typealias SepiaProcessor = ImageProcessorChain<ResizeImageProcessor, SepiaImageProcessor>
+private typealias SepiaProcessor = DemoImageProcessorPipeline<ResizeImageProcessor, SepiaImageProcessor>
 private typealias SepiaExampleLoader = DefaultMediaImageLoader<
     DefaultImageDataDownloader,
     SepiaProcessor,
@@ -86,7 +86,10 @@ struct SepiaImageDemoView: View {
         SepiaExampleLoader(
             downloader: DefaultImageDataDownloader(),
             decoder: ImageIOImageDecoder(),
-            processor: ResizeImageProcessor().then(SepiaImageProcessor(intensity: intensity)),
+            processor: DemoImageProcessorPipeline(
+                ResizeImageProcessor(),
+                then: SepiaImageProcessor(intensity: intensity)
+            ),
             cache: InMemoryImageCache(),
             dataCache: dataCache
         )
