@@ -9,4 +9,5 @@ public enum ImageDownloadError: Error, Equatable {
     case unsupportedAsset
     case invalidResponse
     case unacceptableStatusCode(Int)
+    case exceedsMaximumSize(limit: Int)
 }
