@@ -32,3 +32,4 @@ This directory stores decisions that affect Vulp's architecture and public API.
 - [0019. Present UIKit images with CALayer](0019-use-calayer-for-uikit-image-presentation.md)
 - [0020. Use CGImage as the decoded MediaImage type](0020-use-cgimage-as-media-image.md)
 - [0021. Add a SwiftUI wrapper for the UIKit image view](0021-add-swiftui-wrapper-for-uikit-view.md)
+- [0022. Keep sizing mode types in UI targets](0022-keep-sizing-mode-types-in-ui-targets.md)

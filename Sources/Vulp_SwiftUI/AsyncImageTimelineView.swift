@@ -4,6 +4,11 @@ import Observation
 
 /// Loads and displays an image, playing it when the loaded source contains multiple frames.
 public struct AsyncImageTimelineView<Loader: MediaImageLoading, Content: View, Placeholder: View>: View {
+    public enum SizingMode: String, Sendable {
+        case explicitPixels
+        case viewBounds
+    }
+
     private let taskIdentifier: String
     private let levelOfIntegrity: Double
     private let loadImages: @MainActor @Sendable () async throws -> [MediaImage]
@@ -13,7 +18,7 @@ public struct AsyncImageTimelineView<Loader: MediaImageLoading, Content: View, P
     private let placeholder: Placeholder
     private let onCompletion: (@MainActor @Sendable (Result<MediaImage, any Error>) -> Void)?
 
-    public let sizingMode: ImageViewSizingMode
+    public let sizingMode: SizingMode
 
     private let makeImageOperation: (@MainActor @Sendable (CGSize?, CGFloat) -> ImageLoadingOperation?)?
 
@@ -84,7 +89,7 @@ public struct AsyncImageTimelineView<Loader: MediaImageLoading, Content: View, P
     /// Builds a request from explicit pixels or the laid-out point size and display scale, depending on `sizingMode`.
     public init<Request: MediaImageRequestProtocol>(
         loader: Loader,
-        sizingMode: ImageViewSizingMode = .viewBounds,
+        sizingMode: SizingMode = .viewBounds,
         onCompletion: (@MainActor @Sendable (Result<MediaImage, any Error>) -> Void)? = nil,
         request: @escaping @MainActor @Sendable (CGSize?, CGFloat) throws -> Request,
         @ViewBuilder content: @escaping (Image) -> Content,
@@ -340,7 +345,7 @@ public extension AsyncImageTimelineView where Content == Image {
 
     init<Request: MediaImageRequestProtocol>(
         loader: Loader,
-        sizingMode: ImageViewSizingMode = .viewBounds,
+        sizingMode: SizingMode = .viewBounds,
         onCompletion: (@MainActor @Sendable (Result<MediaImage, any Error>) -> Void)? = nil,
         request: @escaping @MainActor @Sendable (CGSize?, CGFloat) throws -> Request,
         @ViewBuilder placeholder: () -> Placeholder
