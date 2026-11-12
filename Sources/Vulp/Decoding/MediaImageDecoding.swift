@@ -89,13 +89,7 @@ public extension MediaImageDecoding {
     }
 }
 
-public protocol MediaImageSequenceDecoding: MediaImageDecoding {
-    @concurrent
-    func frameCount(in data: Data) async throws -> Int
-
-    @concurrent
-    func frameDurations(in data: Data) async throws -> [TimeInterval]
-}
+public protocol MediaImageSequenceDecoding: MediaImageDecoding {}
 
 public typealias ImageSequenceDeserializer = MediaImageSequenceDecoding
 

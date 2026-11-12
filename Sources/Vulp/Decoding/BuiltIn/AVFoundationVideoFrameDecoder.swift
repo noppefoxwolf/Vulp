@@ -1,0 +1,54 @@
+import Foundation
+
+#if canImport(AVFoundation)
+import AVFoundation
+import UniformTypeIdentifiers
+/// Generates a thumbnail from a video URL without first downloading the complete asset.
+public struct AVFoundationVideoFrameDecoder: VideoFrameDecoding {
+    public init() {}
+
+    @concurrent
+    public func canDecode(data: Data) async -> Bool { false }
+
+    @concurrent
+    public func canDecode(url: URL) async -> Bool {
+        guard !url.pathExtension.isEmpty,
+              let type = UTType(filenameExtension: url.pathExtension.lowercased())
+        else { return true }
+
+        if type.conforms(to: .movie) || type.conforms(to: .video) || type.conforms(to: .audiovisualContent) {
+            return true
+        }
+        if type.conforms(to: .image) { return false }
+        // Unknown extensions still get one direct AVFoundation attempt.
+        return true
+    }
+
+    @concurrent
+    public func decodeFrame(
+        from url: URL,
+        at time: TimeInterval,
+        maximumPixelDimension: Int?
+    ) async throws -> MediaImage {
+        let asset = AVURLAsset(url: url)
+        let tracks: [AVAssetTrack]
+        do {
+            tracks = try await asset.load(.tracks)
+        } catch let error as AVError where error.code == .fileFormatNotRecognized {
+            throw MediaImageDecodingError.unsupportedSource
+        }
+        guard tracks.contains(where: { $0.mediaType == .video }) else {
+            throw MediaImageDecodingError.unsupportedSource
+        }
+        let generator = AVAssetImageGenerator(asset: asset)
+        generator.appliesPreferredTrackTransform = true
+        if let maximumPixelDimension, maximumPixelDimension > 0 {
+            generator.maximumSize = CGSize(width: maximumPixelDimension, height: maximumPixelDimension)
+        }
+        let requestedTime = CMTime(seconds: time, preferredTimescale: 600)
+        let (cgImage, _) = try await generator.image(at: requestedTime)
+
+        return cgImage
+    }
+}
+#endif

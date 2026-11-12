@@ -1,16 +1,9 @@
 import VulpUI
 import SwiftUI
 
-private typealias SepiaProcessor = ImageProcessorChain<ResizeImageProcessor, SepiaImageProcessor>
-private typealias SepiaExampleLoader = DefaultMediaImageLoader<
-    DefaultImageDataDownloader,
-    SepiaProcessor,
-    InMemoryImageCache
->
-
 struct SepiaImageDemoView: View {
     @State private var intensity = 0.85
-    @State private var loader: SepiaExampleLoader
+    @State private var loader: DefaultMediaImageLoader
 
     private let dataCache: DiskImageDataCache
 
@@ -82,11 +75,11 @@ struct SepiaImageDemoView: View {
         loader = Self.makeLoader(intensity: newIntensity, dataCache: dataCache)
     }
 
-    private static func makeLoader(intensity: Double, dataCache: DiskImageDataCache) -> SepiaExampleLoader {
-        SepiaExampleLoader(
+    private static func makeLoader(intensity: Double, dataCache: DiskImageDataCache) -> DefaultMediaImageLoader {
+        DefaultMediaImageLoader(
             downloader: DefaultImageDataDownloader(),
             decoder: ImageIOImageDecoder(),
-            processor: ResizeImageProcessor().then(SepiaImageProcessor(intensity: intensity)),
+            processor: ResizeImageProcessor() + SepiaImageProcessor(intensity: intensity),
             cache: InMemoryImageCache(),
             dataCache: dataCache
         )

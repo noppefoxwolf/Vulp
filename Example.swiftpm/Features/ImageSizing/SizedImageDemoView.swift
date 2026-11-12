@@ -1,19 +1,12 @@
 import VulpUI
 import SwiftUI
 
-private typealias SizedExampleProcessor = ImageProcessorChain<ResizeImageProcessor, ImageSizeDebugProcessor>
-private typealias SizedExampleLoader = DefaultMediaImageLoader<
-    DefaultImageDataDownloader,
-    SizedExampleProcessor,
-    InMemoryImageCache
->
-
 struct SizedImageDemoView: View {
     @Environment(\.displayScale) private var displayScale
     @State private var viewSize: CGFloat = 180
     @State private var usesFill = false
     @State private var showsImageSize = false
-    @State private var loader: SizedExampleLoader
+    @State private var loader: DefaultMediaImageLoader
 
     private let dataCache: DiskImageDataCache
 
@@ -108,11 +101,11 @@ struct SizedImageDemoView: View {
         loader = Self.makeLoader(showsImageSize: isEnabled, dataCache: dataCache)
     }
 
-    private static func makeLoader(showsImageSize: Bool, dataCache: DiskImageDataCache) -> SizedExampleLoader {
-        SizedExampleLoader(
+    private static func makeLoader(showsImageSize: Bool, dataCache: DiskImageDataCache) -> DefaultMediaImageLoader {
+        DefaultMediaImageLoader(
             downloader: DefaultImageDataDownloader(),
             decoder: ImageIOImageDecoder(),
-            processor: ResizeImageProcessor().then(ImageSizeDebugProcessor(isEnabled: showsImageSize)),
+            processor: ResizeImageProcessor() + ImageSizeDebugProcessor(isEnabled: showsImageSize),
             cache: InMemoryImageCache(),
             dataCache: dataCache
         )

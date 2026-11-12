@@ -9,7 +9,7 @@ import Testing
     let request = try ImageLoadRequest(assetHandle: asset, targetSize: .zero)
     let recorder = ProcessorCallRecorder()
     let processor = NamedImageProcessor(name: "first", recorder: recorder)
-        .then(NamedImageProcessor(name: "second", recorder: recorder))
+        + NamedImageProcessor(name: "second", recorder: recorder)
 
     let result = try await processor.process(source, for: request)
 

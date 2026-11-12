@@ -85,8 +85,8 @@ import Testing
     )
     let request = try ImageLoadRequest(assetHandle: asset, targetSize: .zero)
 
-    let prefetch = loader.prefetch(request)
-    await prefetch.value()
+    let prefetch = loader.prefetch(asset)
+    await prefetch.value
     _ = try await loader.load(request)
 
     #expect(await downloader.callCount == 1)
@@ -162,12 +162,12 @@ import Testing
         uniqueKey: "prefetch-cancel-\(UUID().uuidString)"
     )
     let request = try ImageLoadRequest(assetHandle: asset, targetSize: .zero)
-    let prefetch = loader.prefetch(request)
+    let prefetch = loader.prefetch(asset)
     let visibleLoad = Task { try await loader.load(request) }
     try await Task.sleep(for: .milliseconds(30))
 
     prefetch.cancel()
-    await prefetch.value()
+    await prefetch.value
     _ = try await visibleLoad.value
 
     #expect(await downloader.callCount == 1)
@@ -186,11 +186,11 @@ import Testing
         uniqueKey: "prefetch-only-cancel-\(UUID().uuidString)"
     )
     let request = try ImageLoadRequest(assetHandle: asset, targetSize: .zero)
-    let prefetch = loader.prefetch(request)
+    let prefetch = loader.prefetch(asset)
     try await Task.sleep(for: .milliseconds(50))
 
     prefetch.cancel()
-    await prefetch.value()
+    await prefetch.value
     try await Task.sleep(for: .milliseconds(20))
 
     #expect(await downloader.cancellationCount == 1)
