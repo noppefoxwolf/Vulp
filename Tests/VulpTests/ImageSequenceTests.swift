@@ -43,7 +43,7 @@ private enum AnimatedGIFFixture {
     )!
 }
 
-private actor RecordingSequenceTransport: HTTPImageDataTransport {
+private actor RecordingSequenceDownloader: ImageDataDownloader {
     private(set) var requestCount = 0
     let data: Data
 
@@ -51,9 +51,9 @@ private actor RecordingSequenceTransport: HTTPImageDataTransport {
         self.data = data
     }
 
-    func data(from url: URL) async throws -> ImageHTTPResponse {
+    func download(from url: URL) async throws -> Data {
         requestCount += 1
-        return ImageHTTPResponse(data: data, statusCode: 200)
+        return data
     }
 }
 
@@ -110,10 +110,10 @@ func imageIODecoderReportsAndSelectsAPNGAndWebPFrames(filename: String) async th
 }
 
 @Test func imageSequenceFrameLoaderLoadsFramesOnDemand() async throws {
-    let transport = RecordingSequenceTransport(data: AnimatedGIFFixture.data)
+    let downloader = RecordingSequenceDownloader(data: AnimatedGIFFixture.data)
     let cache = InMemoryImageCache()
     let loader = DefaultImageLoader(
-        downloader: DefaultImageDataDownloader(transport: transport),
+        downloader: downloader,
         deserializer: ImageIOImageDeserializer(),
         processor: ResizeImageProcessor(),
         cache: cache
@@ -141,13 +141,13 @@ func imageIODecoderReportsAndSelectsAPNGAndWebPFrames(filename: String) async th
 
     #expect(pixelColor(first) != pixelColor(second))
     #expect(await cache.image(forKey: secondRequest.cacheIdentifier) != nil)
-    #expect(await transport.requestCount == 1)
+    #expect(await downloader.requestCount == 1)
 }
 
 @Test func imageSequenceFrameLoaderPrefetchesFollowingPlaybackFrames() async throws {
-    let transport = RecordingSequenceTransport(data: AnimatedGIFFixture.data)
+    let downloader = RecordingSequenceDownloader(data: AnimatedGIFFixture.data)
     let loader = DefaultImageLoader(
-        downloader: DefaultImageDataDownloader(transport: transport),
+        downloader: downloader,
         deserializer: ImageIOImageDeserializer(),
         processor: ResizeImageProcessor(),
         cache: InMemoryImageCache()
@@ -170,9 +170,9 @@ func imageIODecoderReportsAndSelectsAPNGAndWebPFrames(filename: String) async th
 }
 
 @Test func imageSequenceLoaderFetchesSourceOnceAndCachesEachFrame() async throws {
-    let transport = RecordingSequenceTransport(data: AnimatedGIFFixture.data)
+    let downloader = RecordingSequenceDownloader(data: AnimatedGIFFixture.data)
     let loader = DefaultImageLoader(
-        downloader: DefaultImageDataDownloader(transport: transport),
+        downloader: downloader,
         deserializer: ImageIOImageDeserializer(),
         processor: ResizeImageProcessor(),
         cache: InMemoryImageCache()
@@ -201,7 +201,7 @@ func imageIODecoderReportsAndSelectsAPNGAndWebPFrames(filename: String) async th
     #expect(frames.count == 2)
     #expect(frames[0] === cachedFirstFrame)
     #expect(pixelColor(frames[0]) != pixelColor(frames[1]))
-    #expect(await transport.requestCount == 1)
+    #expect(await downloader.requestCount == 1)
 }
 
 private func pixelColor(_ image: MediaImage) -> [UInt8] {

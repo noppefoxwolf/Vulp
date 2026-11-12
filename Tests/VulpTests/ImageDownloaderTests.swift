@@ -2,18 +2,38 @@ import Foundation
 import Vulp
 import Testing
 
-private actor StubHTTPImageDataTransport: HTTPImageDataTransport {
-    private let response: ImageHTTPResponse
-    private(set) var requestedURL: URL?
-
-    init(response: ImageHTTPResponse) {
-        self.response = response
+private final class StubURLProtocol: URLProtocol {
+    override class func canInit(with request: URLRequest) -> Bool {
+        true
     }
 
-    func data(from url: URL) async throws -> ImageHTTPResponse {
-        requestedURL = url
-        return response
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest {
+        request
     }
+
+    override func startLoading() {
+        guard let url = request.url,
+              let statusCode = Int(url.lastPathComponent),
+              let response = HTTPURLResponse(
+                  url: url,
+                  statusCode: statusCode,
+                  httpVersion: "HTTP/1.1",
+                  headerFields: nil
+              )
+        else { return }
+
+        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: Data("image bytes".utf8))
+        client?.urlProtocolDidFinishLoading(self)
+    }
+
+    override func stopLoading() {}
+}
+
+private func makeStubbedURLSession() -> URLSession {
+    let configuration = URLSessionConfiguration.ephemeral
+    configuration.protocolClasses = [StubURLProtocol.self]
+    return URLSession(configuration: configuration)
 }
 
 private struct OpaqueDataAssetHandle: ImageAssetHandle {
@@ -52,27 +72,22 @@ private struct OpaqueDataAssetHandle: ImageAssetHandle {
     #expect(try await asset.loadData(using: DefaultImageDataDownloader()) == data)
 }
 
-@Test func defaultDownloaderUsesInjectedHTTPTransport() async throws {
+@Test func defaultDownloaderLoadsHTTPResponseBody() async throws {
     let body = Data("image bytes".utf8)
-    let url = URL(string: "https://example.com/image")!
-    let transport = StubHTTPImageDataTransport(response: ImageHTTPResponse(data: body, statusCode: 200))
-    let downloader = DefaultImageDataDownloader(transport: transport)
-    let asset = RemoteImageAsset(url: url, uniqueKey: "remote")
+    let url = URL(string: "https://example.com/200")!
+    let downloader = DefaultImageDataDownloader(session: makeStubbedURLSession())
 
-    let result = try await asset.loadData(using: downloader)
+    let result = try await downloader.download(from: url)
 
     #expect(result == body)
-    #expect(await transport.requestedURL == url)
 }
 
 @Test func defaultDownloaderRejectsNonSuccessResponse() async {
-    let url = URL(string: "https://example.com/missing")!
-    let transport = StubHTTPImageDataTransport(response: ImageHTTPResponse(data: Data(), statusCode: 404))
-    let downloader = DefaultImageDataDownloader(transport: transport)
-    let asset = RemoteImageAsset(url: url, uniqueKey: "missing")
+    let url = URL(string: "https://example.com/404")!
+    let downloader = DefaultImageDataDownloader(session: makeStubbedURLSession())
 
     do {
-        _ = try await asset.loadData(using: downloader)
+        _ = try await downloader.download(from: url)
         Issue.record("Expected non-success HTTP status to fail")
     } catch let error as ImageDownloadError {
         #expect(error == .unacceptableStatusCode(404))
