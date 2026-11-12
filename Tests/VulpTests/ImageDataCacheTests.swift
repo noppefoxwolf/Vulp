@@ -28,7 +28,7 @@ import Testing
     let request = try ImageLoadRequest(assetHandle: asset, targetSize: .zero)
     let firstLoader = DefaultImageLoader(
         downloader: firstDownloader,
-        deserializer: ImageIOImageDeserializer(),
+        decoder: ImageIOImageDeserializer(),
         processor: ResizeImageProcessor(),
         cache: InMemoryImageCache(),
         dataCache: dataCache
@@ -38,7 +38,7 @@ import Testing
     let secondDownloader = CountingDownloader()
     let secondLoader = DefaultImageLoader(
         downloader: secondDownloader,
-        deserializer: ImageIOImageDeserializer(),
+        decoder: ImageIOImageDeserializer(),
         processor: ResizeImageProcessor(),
         cache: InMemoryImageCache(),
         dataCache: DiskImageDataCache(directory: directory)

@@ -6,7 +6,7 @@ import Testing
     let cache = InMemoryImageCache()
     let loader = DefaultImageLoader(
         downloader: DefaultImageDataDownloader(),
-        deserializer: ImageIOImageDeserializer(),
+        decoder: ImageIOImageDeserializer(),
         processor: ResizeImageProcessor(),
         cache: cache
     )
@@ -33,7 +33,7 @@ import Testing
     let dataCache = DiskImageDataCache(directory: directory)
     let loader = DefaultImageLoader(
         downloader: DefaultImageDataDownloader(),
-        deserializer: ImageIOImageDeserializer(),
+        decoder: ImageIOImageDeserializer(),
         processor: ResizeImageProcessor(),
         cache: imageCache,
         dataCache: dataCache
@@ -54,7 +54,7 @@ import Testing
     let downloader = CountingDownloader()
     let loader = DefaultImageLoader(
         downloader: downloader,
-        deserializer: ImageIOImageDeserializer(),
+        decoder: ImageIOImageDeserializer(),
         processor: ResizeImageProcessor(),
         cache: InMemoryImageCache()
     )
@@ -75,7 +75,7 @@ import Testing
     let downloader = CountingDownloader()
     let loader = DefaultImageLoader(
         downloader: downloader,
-        deserializer: ImageIOImageDeserializer(),
+        decoder: ImageIOImageDeserializer(),
         processor: ResizeImageProcessor(),
         cache: InMemoryImageCache()
     )
@@ -96,7 +96,7 @@ import Testing
     let downloader = CountingDownloader(delay: .milliseconds(80))
     let loader = DefaultImageLoader(
         downloader: downloader,
-        deserializer: ImageIOImageDeserializer(),
+        decoder: ImageIOImageDeserializer(),
         processor: ResizeImageProcessor(),
         cache: InMemoryImageCache()
     )
@@ -115,7 +115,7 @@ import Testing
     let downloader = CountingDownloader(delay: .seconds(2))
     let loader = DefaultImageLoader(
         downloader: downloader,
-        deserializer: ImageIOImageDeserializer(),
+        decoder: ImageIOImageDeserializer(),
         processor: ResizeImageProcessor(),
         cache: InMemoryImageCache()
     )
@@ -134,7 +134,7 @@ import Testing
     let downloader = CountingDownloader()
     let loader = DefaultImageLoader(
         downloader: downloader,
-        deserializer: ImageIOImageDeserializer(),
+        decoder: ImageIOImageDeserializer(),
         processor: ResizeImageProcessor(),
         cache: InMemoryImageCache()
     )
@@ -153,7 +153,7 @@ import Testing
     let downloader = CountingDownloader(delay: .milliseconds(250))
     let loader = DefaultImageLoader(
         downloader: downloader,
-        deserializer: ImageIOImageDeserializer(),
+        decoder: ImageIOImageDeserializer(),
         processor: ResizeImageProcessor(),
         cache: InMemoryImageCache()
     )
@@ -177,7 +177,7 @@ import Testing
     let downloader = CountingDownloader(delay: .seconds(2))
     let loader = DefaultImageLoader(
         downloader: downloader,
-        deserializer: ImageIOImageDeserializer(),
+        decoder: ImageIOImageDeserializer(),
         processor: ResizeImageProcessor(),
         cache: InMemoryImageCache()
     )
@@ -202,7 +202,7 @@ import Testing
     let downloader = CountingDownloader(delay: .milliseconds(250))
     let loader = DefaultImageLoader(
         downloader: downloader,
-        deserializer: ImageIOImageDeserializer(),
+        decoder: ImageIOImageDeserializer(),
         processor: ResizeImageProcessor(),
         cache: InMemoryImageCache()
     )
@@ -225,7 +225,7 @@ import Testing
     let cache = LRUImageCache()
     let loader = DefaultImageLoader(
         downloader: FailingDownloader(),
-        deserializer: ImageIOImageDeserializer(),
+        decoder: ImageIOImageDeserializer(),
         processor: ResizeImageProcessor(),
         cache: cache
     )
@@ -246,7 +246,7 @@ import Testing
     let downloader = CountingDownloader(delay: .milliseconds(250))
     let loader = DefaultImageLoader(
         downloader: downloader,
-        deserializer: ImageIOImageDeserializer(),
+        decoder: ImageIOImageDeserializer(),
         processor: ResizeImageProcessor(),
         cache: InMemoryImageCache()
     )

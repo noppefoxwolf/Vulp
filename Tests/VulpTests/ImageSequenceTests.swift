@@ -114,7 +114,7 @@ func imageIODecoderReportsAndSelectsAPNGAndWebPFrames(filename: String) async th
     let cache = InMemoryImageCache()
     let loader = DefaultImageLoader(
         downloader: downloader,
-        deserializer: ImageIOImageDeserializer(),
+        decoder: ImageIOImageDeserializer(),
         processor: ResizeImageProcessor(),
         cache: cache
     )
@@ -148,7 +148,7 @@ func imageIODecoderReportsAndSelectsAPNGAndWebPFrames(filename: String) async th
     let downloader = RecordingSequenceDownloader(data: AnimatedGIFFixture.data)
     let loader = DefaultImageLoader(
         downloader: downloader,
-        deserializer: ImageIOImageDeserializer(),
+        decoder: ImageIOImageDeserializer(),
         processor: ResizeImageProcessor(),
         cache: InMemoryImageCache()
     )
@@ -173,7 +173,7 @@ func imageIODecoderReportsAndSelectsAPNGAndWebPFrames(filename: String) async th
     let downloader = RecordingSequenceDownloader(data: AnimatedGIFFixture.data)
     let loader = DefaultImageLoader(
         downloader: downloader,
-        deserializer: ImageIOImageDeserializer(),
+        decoder: ImageIOImageDeserializer(),
         processor: ResizeImageProcessor(),
         cache: InMemoryImageCache()
     )

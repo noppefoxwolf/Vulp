@@ -61,17 +61,6 @@ public struct DefaultMediaImageLoader: MediaImageLoading {
         )
     }
 
-    /// Compatibility initializer using the pre-media `deserializer` label.
-    public init<Downloader: ImageDataDownloader, Processor: ImageProcessor, Cache: ImageCache>(
-        downloader: Downloader,
-        deserializer: any MediaImageDecoding,
-        processor: Processor,
-        cache: Cache,
-        dataCache: any ImageDataCache = DiskImageDataCache()
-    ) {
-        self.init(downloader: downloader, decoder: deserializer, processor: processor, cache: cache, dataCache: dataCache)
-    }
-
     @concurrent
     public func load<Request: MediaImageRequestProtocol>(_ request: Request) async throws -> MediaImage {
         try await load(request, priority: .userInitiated)
