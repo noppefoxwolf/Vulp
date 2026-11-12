@@ -277,18 +277,9 @@ private struct UIKitImageSample: UIViewRepresentable {
 
 private struct ProcessingDemoView: View {
     let services: DemoServices
+    @Environment(\.displayScale) private var displayScale
     @State private var side: CGFloat = 180
     @State private var usesSepia = false
-    @State private var image: CGImage?
-    @State private var error: String?
-
-    private var request: MediaImageRequest? {
-        try? MediaImageRequest(
-            asset: DemoAssets.jpeg,
-            targetSize: CGSize(width: side * 2, height: side * 2),
-            cacheIdentifier: "processing-demo-\(Int(side * 2))-\(usesSepia)"
-        )
-    }
 
     var body: some View {
         Form {
@@ -297,19 +288,26 @@ private struct ProcessingDemoView: View {
                     RoundedRectangle(cornerRadius: 12)
                         .fill(.quaternary)
 
-                    if let image {
-                        Image(decorative: image, scale: 1)
-                            .resizable()
-                            .scaledToFit()
-                            .frame(width: side, height: side)
-                    } else if let error {
-                        Text(error)
-                            .foregroundStyle(.red)
-                            .multilineTextAlignment(.center)
-                            .padding()
-                    } else {
+                    VulpUI.AsyncImageTimelineView(
+                        loader: activeLoader,
+                        request: { targetSize, scale in
+                            let pointSize = targetSize ?? CGSize(width: side, height: side)
+                            let sizedRequest = try MediaImageRequest(
+                                asset: DemoAssets.jpeg,
+                                targetSize: pointSize,
+                                scale: scale
+                            )
+                            return try MediaImageRequest(
+                                asset: DemoAssets.jpeg,
+                                targetSize: sizedRequest.targetSize,
+                                cacheIdentifier: "processing-demo-\(sizedRequest.targetSize.width)x\(sizedRequest.targetSize.height)-\(usesSepia)"
+                            )
+                        },
+                        content: { $0.resizable().scaledToFit() }
+                    ) {
                         ProgressView()
                     }
+                    .frame(width: side, height: side)
                 }
                 .frame(maxWidth: .infinity)
                 .frame(height: 336)
@@ -317,7 +315,7 @@ private struct ProcessingDemoView: View {
 
                 VStack(alignment: .leading, spacing: 4) {
                     metricRow("表示サイズ", value: "\(Int(side)) × \(Int(side)) pt")
-                    metricRow("使用画像", value: processedImageSize)
+                    metricRow("要求画像", value: "\(Int((side * displayScale).rounded(.up))) × \(Int((side * displayScale).rounded(.up))) px")
                     metricRow("キャッシュ枠", value: cacheSize)
                 }
                 .font(.footnote)
@@ -334,18 +332,22 @@ private struct ProcessingDemoView: View {
         }
         .navigationTitle("処理とキャッシュ")
         .navigationBarTitleDisplayMode(.inline)
-        .task(id: request?.cacheIdentifier) {
-            await loadImage()
-        }
     }
 
-    private var processedImageSize: String {
-        guard let image else { return "読み込み中…" }
-        return "\(image.width) × \(image.height) px"
+    private var activeLoader: DemoLoader {
+        usesSepia
+            ? services.loader(processor: ResizeImageProcessor() + SepiaProcessor())
+            : services.loader
     }
 
     private var cacheSize: String {
-        guard let request else { return "—" }
+        guard let request = try? MediaImageRequest(
+            asset: DemoAssets.jpeg,
+            targetSize: CGSize(width: side, height: side),
+            scale: displayScale
+        ) else {
+            return "—"
+        }
         return "\(Int(request.targetSize.width)) × \(Int(request.targetSize.height)) px"
     }
 
@@ -356,24 +358,6 @@ private struct ProcessingDemoView: View {
             Spacer(minLength: 12)
             Text(value)
                 .monospacedDigit()
-        }
-    }
-
-    @MainActor
-    private func loadImage() async {
-        guard let request else { return }
-        image = nil
-        error = nil
-        do {
-            if usesSepia {
-                let processorLoader = services.loader(processor: ResizeImageProcessor() + SepiaProcessor())
-                image = try await processorLoader.load(request)
-            } else {
-                image = try await services.loader.load(request)
-            }
-        } catch is CancellationError {
-        } catch {
-            self.error = error.localizedDescription
         }
     }
 }
