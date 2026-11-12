@@ -176,7 +176,7 @@ private struct SuccessfulLoadCountingImageLoader: MediaImageSequenceLoading {
 }
 
 @Test @MainActor func imageLoaderViewAcceptsSequenceAssetAndLoader() {
-    let loader = DefaultImageLoader(
+    let loader = DefaultMediaImageLoader(
         downloader: DefaultImageDataDownloader(),
         decoder: ImageIOImageDeserializer(),
         processor: ResizeImageProcessor(),
@@ -216,7 +216,7 @@ private struct SuccessfulLoadCountingImageLoader: MediaImageSequenceLoading {
         assetHandle: asset,
         targetSize: CGSize(width: 8, height: 8)
     )
-    let loader = DefaultImageLoader(
+    let loader = DefaultMediaImageLoader(
         downloader: DefaultImageDataDownloader(),
         decoder: ImageIOImageDeserializer(),
         processor: ResizeImageProcessor(),
@@ -408,7 +408,7 @@ private func findAsyncImageView(in view: UIView) -> AsyncImageView? {
 }
 
 @Test @MainActor func uiKitAsyncImageViewLoadsAndPlaysImageSequence() async throws {
-    let loader = DefaultImageLoader(
+    let loader = DefaultMediaImageLoader(
         downloader: DefaultImageDataDownloader(),
         decoder: ImageIOImageDeserializer(),
         processor: ResizeImageProcessor(),

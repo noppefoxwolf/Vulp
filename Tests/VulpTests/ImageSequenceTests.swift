@@ -112,7 +112,7 @@ func imageIODecoderReportsAndSelectsAPNGAndWebPFrames(filename: String) async th
 @Test func imageSequenceFrameLoaderLoadsFramesOnDemand() async throws {
     let downloader = RecordingSequenceDownloader(data: AnimatedGIFFixture.data)
     let cache = InMemoryImageCache()
-    let loader = DefaultImageLoader(
+    let loader = DefaultMediaImageLoader(
         downloader: downloader,
         decoder: ImageIOImageDeserializer(),
         processor: ResizeImageProcessor(),
@@ -146,7 +146,7 @@ func imageIODecoderReportsAndSelectsAPNGAndWebPFrames(filename: String) async th
 
 @Test func imageSequenceFrameLoaderPrefetchesFollowingPlaybackFrames() async throws {
     let downloader = RecordingSequenceDownloader(data: AnimatedGIFFixture.data)
-    let loader = DefaultImageLoader(
+    let loader = DefaultMediaImageLoader(
         downloader: downloader,
         decoder: ImageIOImageDeserializer(),
         processor: ResizeImageProcessor(),
@@ -171,7 +171,7 @@ func imageIODecoderReportsAndSelectsAPNGAndWebPFrames(filename: String) async th
 
 @Test func imageSequenceLoaderFetchesSourceOnceAndCachesEachFrame() async throws {
     let downloader = RecordingSequenceDownloader(data: AnimatedGIFFixture.data)
-    let loader = DefaultImageLoader(
+    let loader = DefaultMediaImageLoader(
         downloader: downloader,
         decoder: ImageIOImageDeserializer(),
         processor: ResizeImageProcessor(),

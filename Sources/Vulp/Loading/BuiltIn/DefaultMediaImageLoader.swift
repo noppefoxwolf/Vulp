@@ -254,5 +254,3 @@ extension DefaultMediaImageLoader: MediaImageSequenceLoading {
         return ImageSequence(identifier: asset.uniqueKey, data: data, frameDurations: frameDurations)
     }
 }
-
-public typealias DefaultImageLoader = DefaultMediaImageLoader
