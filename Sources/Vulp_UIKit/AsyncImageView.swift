@@ -10,6 +10,7 @@ public final class AsyncImageView: UIView {
     private var makeImageOperation: (@MainActor @Sendable (CGSize?, CGFloat) -> ImageLoadingOperation?)?
     private var currentCacheIdentifier: String?
     private var loadedCacheIdentifier: String?
+    private var currentSourceIdentifier: String?
     private var lastRequestLayoutKey: RequestLayoutKey?
     private var imageLoadTask: Task<Void, Never>?
     private var imageCompletionHandler: (@MainActor @Sendable (Result<CGImage, any Error>) -> Void)?
@@ -67,6 +68,7 @@ public final class AsyncImageView: UIView {
                 let imageRequest = try request(targetSize, scale)
                 return ImageLoadingOperation(
                     cacheIdentifier: imageRequest.cacheIdentifier,
+                    sourceIdentifier: imageRequest.asset.uniqueKey,
                     load: {
                         try await Self.loadImageRequest(
                             imageRequest,
@@ -142,6 +144,7 @@ public final class AsyncImageView: UIView {
         makeImageOperation = nil
         currentCacheIdentifier = nil
         loadedCacheIdentifier = nil
+        currentSourceIdentifier = nil
         lastRequestLayoutKey = nil
         sequencePlayback.stop()
     }
@@ -220,6 +223,12 @@ public final class AsyncImageView: UIView {
 
         guard let operation = makeImageOperation(targetSize, scale) else { return }
         lastRequestLayoutKey = layoutKey
+        if currentSourceIdentifier != operation.sourceIdentifier {
+            currentSourceIdentifier = operation.sourceIdentifier
+            currentCacheIdentifier = nil
+            loadedCacheIdentifier = nil
+            setDisplayedImage(nil)
+        }
         guard operation.cacheIdentifier != currentCacheIdentifier else { return }
 
         currentCacheIdentifier = operation.cacheIdentifier
@@ -229,7 +238,6 @@ public final class AsyncImageView: UIView {
             setDisplayedImage(displayedImage)
             return
         }
-        setDisplayedImage(nil)
         imageLoadTask = Task { @MainActor [weak self] in
             do {
                 let image = try await operation.load()
@@ -327,6 +335,7 @@ public final class AsyncImageView: UIView {
 
 private struct ImageLoadingOperation {
     let cacheIdentifier: String
+    let sourceIdentifier: String
     let load: @MainActor @Sendable () async throws -> ImageLoadingResult
 }
 
