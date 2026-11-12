@@ -20,8 +20,8 @@ public struct DefaultMediaImageLoader: MediaImageLoading {
     private let processor: any ImageProcessor
     private let cache: any ImageCache
     private let dataCache: any ImageDataCache
-    private let fetchDeduper = ImageFetchDeduper<MediaImage>()
-    private let assetDataFetchDeduper = ImageFetchDeduper<Data>()
+    private let fetchDeduper = TaskDeduper<String, MediaImage>()
+    private let assetDataFetchDeduper = TaskDeduper<String, Data>()
 
     /// Removes all decoded images and encoded source data stored by this loader.
     public func clearCache() async {

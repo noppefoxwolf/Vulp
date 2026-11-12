@@ -1,8 +1,8 @@
 import Foundation
 
-/// Holds one in-flight image load and resumes every caller waiting for its result.
+/// Holds one in-flight operation and resumes every caller waiting for its result.
 /// Cancelling a waiter preserves shared work while any other caller still waits.
-actor ImageFetchFlight<Value: Sendable> {
+actor TaskFlight<Value: Sendable> {
     private var result: Result<Value, Error>?
     private var waiters: [UUID: CheckedContinuation<Value, Error>] = [:]
     private var operationTask: Task<Void, Never>?
@@ -59,16 +59,16 @@ actor ImageFetchFlight<Value: Sendable> {
     }
 }
 
-/// Coalesces simultaneous image loads that use the same key.
+/// Coalesces simultaneous operations that use the same key.
 ///
-/// This is separate from the image cache: it only shares work while a load is
-/// in progress, then removes the flight after its result has been delivered.
-actor ImageFetchDeduper<Value: Sendable> {
-    private var flights: [String: ImageFetchFlight<Value>] = [:]
+/// It only shares work while an operation is in progress, then removes the
+/// flight after its result has been delivered.
+actor TaskDeduper<Key: Hashable & Sendable, Value: Sendable> {
+    private var flights: [Key: TaskFlight<Value>] = [:]
 
-    /// Returns the existing load for `key`, or starts `operation` if none exists.
+    /// Returns the existing operation for `key`, or starts one if none exists.
     func load(
-        forKey key: String,
+        forKey key: Key,
         priority: TaskPriority = .userInitiated,
         operation: @escaping @Sendable () async throws -> Value
     ) async throws -> Value {
@@ -87,7 +87,7 @@ actor ImageFetchDeduper<Value: Sendable> {
         return try await flight.value()
     }
 
-    private func join(_ key: String) async -> (flight: ImageFetchFlight<Value>, isLeader: Bool) {
+    private func join(_ key: Key) async -> (flight: TaskFlight<Value>, isLeader: Bool) {
         if let flight = flights[key] {
             if !(await flight.isCancelledFlight()) {
                 return (flight, false)
@@ -95,12 +95,12 @@ actor ImageFetchDeduper<Value: Sendable> {
             flights.removeValue(forKey: key)
         }
 
-        let flight = ImageFetchFlight<Value>()
+        let flight = TaskFlight<Value>()
         flights[key] = flight
         return (flight, true)
     }
 
-    private func remove(_ key: String, flight: ImageFetchFlight<Value>) {
+    private func remove(_ key: Key, flight: TaskFlight<Value>) {
         guard flights[key] === flight else { return }
         flights.removeValue(forKey: key)
     }
