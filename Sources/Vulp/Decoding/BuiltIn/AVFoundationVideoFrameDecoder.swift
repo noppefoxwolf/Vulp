@@ -8,7 +8,8 @@ public struct AVFoundationVideoFrameDecoder: MediaImageDecoding {
 
     @concurrent
     public func canDecode(url: URL) async -> Bool {
-        let asset = AVURLAsset(url: url)
+        guard let mimeType = videoMIMEType(for: url) else { return false }
+        let asset = AVURLAsset(url: url, options: [AVURLAssetOverrideMIMETypeKey: mimeType])
         guard let tracks = try? await asset.load(.tracks) else { return false }
         return tracks.contains(where: { $0.mediaType == .video })
     }
@@ -22,7 +23,10 @@ public struct AVFoundationVideoFrameDecoder: MediaImageDecoding {
         if case .frame(let index) = options {
             throw MediaImageDecodingError.videoFrameIndexUnsupported(index)
         }
-        let asset = AVURLAsset(url: url)
+        guard let mimeType = videoMIMEType(for: url) else {
+            throw MediaImageDecodingError.unsupportedSource
+        }
+        let asset = AVURLAsset(url: url, options: [AVURLAssetOverrideMIMETypeKey: mimeType])
         let tracks: [AVAssetTrack]
         do {
             tracks = try await asset.load(.tracks)
@@ -40,6 +44,25 @@ public struct AVFoundationVideoFrameDecoder: MediaImageDecoding {
         let (cgImage, _) = try await generator.image(at: .zero)
 
         return cgImage
+    }
+
+    private func videoMIMEType(for url: URL) -> String? {
+        switch url.pathExtension.lowercased() {
+        case "mp4", "m4v":
+            return "video/mp4"
+        case "mov":
+            return "video/quicktime"
+        case "3gp", "3g2":
+            return "video/3gpp"
+        default:
+            guard let file = try? FileHandle(forReadingFrom: url) else { return nil }
+            defer { try? file.close() }
+            guard let header = try? file.read(upToCount: 12),
+                  header.count >= 8,
+                  String(data: header[4..<8], encoding: .ascii) == "ftyp"
+            else { return nil }
+            return "video/mp4"
+        }
     }
 }
 #endif

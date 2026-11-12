@@ -32,6 +32,27 @@ Add this repository in Xcode with **File > Add Package Dependencies…**, then s
 - `Vulp_AppKit`: AppKit views
 - `VulpUI`: re-exports the UI products above
 
+## Example app
+
+`Example.swiftpm` is a fresh Swift Playgrounds app for trying the library end to end. Its image and video samples are bundled locally, so demos do not depend on the sample hosts being online. It includes:
+
+- Animated WebP, APNG, and GIF samples, plus PNG and JPEG images
+- SwiftUI and UIKit presentation
+- A 1,000-item lazy grid of emoji-sized animated images
+- View-size-driven requests, a custom image processor, and cache clearing
+- Video thumbnail loading with AVFoundation
+- Creative Commons/public-domain media with in-app source and license credits in `Resources/ATTRIBUTION.md`
+
+Open `Example.swiftpm` in Xcode, or build it from that directory:
+
+```sh
+xcodebuild -scheme Example \
+  -destination 'generic/platform=iOS' \
+  -derivedDataPath /tmp/VulpExampleDerivedData \
+  CODE_SIGNING_ALLOWED=NO \
+  build
+```
+
 ## Quick start
 
 ### UIKit

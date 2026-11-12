@@ -43,7 +43,10 @@ let package = Package(
             dependencies: [
                 .product(name: "VulpUI", package: "Vulp")
             ],
-            path: "."
+            path: ".",
+            resources: [
+                .process("Resources")
+            ]
         )
     ],
     swiftLanguageVersions: [.v6]

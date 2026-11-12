@@ -7,7 +7,10 @@ public struct ImageIOImageDecoder: MediaImageDecoding {
     @concurrent
     public func canDecode(url: URL) async -> Bool {
         guard url.isFileURL else { return false }
-        return CGImageSourceCreateWithURL(url as CFURL, nil) != nil
+        guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
+              CGImageSourceGetType(source) != nil
+        else { return false }
+        return CGImageSourceGetCount(source) > 0
     }
 
     @concurrent
@@ -22,9 +25,11 @@ public struct ImageIOImageDecoder: MediaImageDecoding {
         maximumPixelDimension: Int?
     ) async throws -> MediaImage {
         guard url.isFileURL,
-              let source = CGImageSourceCreateWithURL(url as CFURL, nil)
+              let source = CGImageSourceCreateWithURL(url as CFURL, nil),
+              CGImageSourceGetType(source) != nil,
+              CGImageSourceGetCount(source) > 0
         else {
-            throw ImageDecodingError.invalidData
+            throw MediaImageDecodingError.unsupportedSource
         }
         let index: Int
         switch options {
