@@ -27,6 +27,7 @@ public struct AsyncImageTimelineView<Loader: MediaImageLoading, Content: View, P
     @State private var measuredSize: CGSize = .zero
     // Keeps a successful static image in place when SwiftUI restarts its task on reappearance.
     @State private var loadedTaskIdentifier: String?
+    @State private var loadedSourceIdentifier: String?
 
     /// Loads a single image request.
     public init<Request: MediaImageRequestProtocol>(
@@ -107,6 +108,7 @@ public struct AsyncImageTimelineView<Loader: MediaImageLoading, Content: View, P
                 let imageRequest = try request(targetSize, scale)
                 return ImageLoadingOperation(
                     cacheIdentifier: imageRequest.cacheIdentifier,
+                    sourceIdentifier: imageRequest.asset.uniqueKey,
                     load: { [loader, imageRequest] in
                         try await loader.load(imageRequest)
                     }
@@ -127,6 +129,7 @@ public struct AsyncImageTimelineView<Loader: MediaImageLoading, Content: View, P
                     imageContent(
                         for: nil,
                         taskIdentifier: "\(taskIdentifier)|\(measuredSize.width)x\(measuredSize.height)@\(displayScale)",
+                        sourceIdentifier: taskIdentifier,
                         sequenceOperation: sequenceOperation
                     )
                 } else {
@@ -140,7 +143,8 @@ public struct AsyncImageTimelineView<Loader: MediaImageLoading, Content: View, P
                         let operation = makeImageOperation(measuredSize, displayScale)
                         imageContent(
                             for: operation,
-                            taskIdentifier: "\(measuredSize.width)x\(measuredSize.height)@\(displayScale)"
+                            taskIdentifier: "\(measuredSize.width)x\(measuredSize.height)@\(displayScale)",
+                            sourceIdentifier: operation?.sourceIdentifier
                         )
                     } else {
                         placeholder
@@ -185,6 +189,7 @@ public struct AsyncImageTimelineView<Loader: MediaImageLoading, Content: View, P
     private func imageContent(
         for operation: ImageLoadingOperation?,
         taskIdentifier: String,
+        sourceIdentifier: String? = nil,
         sequenceOperation: (@MainActor @Sendable () async throws -> (ImageSequenceFrameLoader<Loader>, ImageSequencePlaybackPlan))? = nil
     ) -> some View {
         Group {
@@ -204,6 +209,7 @@ public struct AsyncImageTimelineView<Loader: MediaImageLoading, Content: View, P
         }
         .task(id: operation?.cacheIdentifier ?? taskIdentifier) {
             let activeTaskIdentifier = operation?.cacheIdentifier ?? taskIdentifier
+            prepareForSource(sourceIdentifier ?? taskIdentifier)
             if let sequenceOperation {
                 do {
                     try await playSequence(using: sequenceOperation, taskIdentifier: activeTaskIdentifier)
@@ -223,8 +229,6 @@ public struct AsyncImageTimelineView<Loader: MediaImageLoading, Content: View, P
     @MainActor
     private func load(operation: ImageLoadingOperation, taskIdentifier: String) async {
         guard loadedTaskIdentifier != taskIdentifier || image == nil else { return }
-        image = nil
-        sequencePlayback = nil
         do {
             let loadedImage = try await operation.load()
             try Task.checkCancellation()
@@ -245,14 +249,10 @@ public struct AsyncImageTimelineView<Loader: MediaImageLoading, Content: View, P
                 guard loadedTaskIdentifier != taskIdentifier || sequencePlayback != nil || image == nil else {
                     return
                 }
-                image = nil
-                sequencePlayback = nil
                 try await playSequence(using: loadSequence, taskIdentifier: taskIdentifier)
                 return
             }
             guard loadedTaskIdentifier != taskIdentifier || image == nil else { return }
-            image = nil
-            sequencePlayback = nil
             let loadedImages = try await loadImages()
             try Task.checkCancellation()
             image = loadedImages.first
@@ -265,6 +265,15 @@ public struct AsyncImageTimelineView<Loader: MediaImageLoading, Content: View, P
         } catch {
             onCompletion?(.failure(error))
         }
+    }
+
+    @MainActor
+    private func prepareForSource(_ sourceIdentifier: String) {
+        guard loadedSourceIdentifier != sourceIdentifier else { return }
+        image = nil
+        sequencePlayback = nil
+        loadedTaskIdentifier = nil
+        loadedSourceIdentifier = sourceIdentifier
     }
 
     @MainActor
@@ -283,6 +292,7 @@ public struct AsyncImageTimelineView<Loader: MediaImageLoading, Content: View, P
                 try Task.checkCancellation()
                 guard playbackPlan.isAnimated else {
                     image = firstImage
+                    sequencePlayback = nil
                     onCompletion?(.success(firstImage))
                     loadedTaskIdentifier = taskIdentifier
                     await frameLoader.cancel()
@@ -559,6 +569,7 @@ public extension AsyncImageTimelineView where Loader == DefaultMediaImageLoader,
 
 private struct ImageLoadingOperation {
     let cacheIdentifier: String
+    let sourceIdentifier: String
     let load: @MainActor @Sendable () async throws -> MediaImage
 }
 
