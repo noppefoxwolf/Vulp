@@ -475,11 +475,7 @@ private final class SequencePlaybackModel<Loader: MediaImageLoading> {
     }
 }
 
-public extension AsyncImageTimelineView where Loader == DefaultMediaImageLoader<
-    DefaultImageDataDownloader,
-    ResizeImageProcessor,
-    InMemoryImageCache
-> {
+public extension AsyncImageTimelineView where Loader == DefaultMediaImageLoader {
     /// Loads a URL at the view's size and plays it when it contains multiple frames.
     init(
         url: URL,
@@ -524,11 +520,7 @@ public extension AsyncImageTimelineView where Loader == DefaultMediaImageLoader<
     }
 }
 
-public extension AsyncImageTimelineView where Loader == DefaultMediaImageLoader<
-    DefaultImageDataDownloader,
-    ResizeImageProcessor,
-    InMemoryImageCache
->, Content == Image {
+public extension AsyncImageTimelineView where Loader == DefaultMediaImageLoader, Content == Image {
     init(
         url: URL,
         levelOfIntegrity: Double = 1,
@@ -547,11 +539,7 @@ public extension AsyncImageTimelineView where Loader == DefaultMediaImageLoader<
     }
 }
 
-public extension AsyncImageTimelineView where Loader == DefaultMediaImageLoader<
-    DefaultImageDataDownloader,
-    ResizeImageProcessor,
-    InMemoryImageCache
->, Content == Image, Placeholder == ProgressView<EmptyView, EmptyView> {
+public extension AsyncImageTimelineView where Loader == DefaultMediaImageLoader, Content == Image, Placeholder == ProgressView<EmptyView, EmptyView> {
     init(
         url: URL,
         levelOfIntegrity: Double = 1,

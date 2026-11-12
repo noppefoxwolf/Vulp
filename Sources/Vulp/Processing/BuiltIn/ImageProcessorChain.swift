@@ -20,9 +20,10 @@ private struct ImageProcessorChain<First: ImageProcessor, Second: ImageProcessor
     }
 }
 
-public extension ImageProcessor {
-    /// Chains this processor with another processor, applying this processor first.
-    func then<Next: ImageProcessor>(_ next: Next) -> some ImageProcessor {
-        ImageProcessorChain(first: self, then: next)
-    }
+/// Composes two image processors, applying the left-hand processor first.
+public func +<First: ImageProcessor, Second: ImageProcessor>(
+    lhs: First,
+    rhs: Second
+) -> some ImageProcessor {
+    ImageProcessorChain(first: lhs, then: rhs)
 }

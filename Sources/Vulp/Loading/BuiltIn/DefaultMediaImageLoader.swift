@@ -4,11 +4,7 @@ import CoreGraphics
 /// Commonly used image loaders.
 public enum MediaImageLoader {
     /// A shared loader using URLSession, ImageIO, AVFoundation, image resizing, and in-memory caching.
-    public static let `default`: DefaultMediaImageLoader<
-        DefaultImageDataDownloader,
-        ResizeImageProcessor,
-        InMemoryImageCache
-    > = DefaultMediaImageLoader(
+    public static let `default`: DefaultMediaImageLoader = DefaultMediaImageLoader(
         downloader: DefaultImageDataDownloader(),
         decoders: [ImageIOImageDecoder(), AVFoundationVideoFrameDecoder()],
         processor: ResizeImageProcessor(),
@@ -18,11 +14,11 @@ public enum MediaImageLoader {
 
 public typealias ImageLoader = MediaImageLoader
 
-public struct DefaultMediaImageLoader<Downloader: ImageDataDownloader, Processor: ImageProcessor, Cache: ImageCache>: MediaImageLoading {
-    private let downloader: Downloader
+public struct DefaultMediaImageLoader: MediaImageLoading {
+    private let downloader: any ImageDataDownloader
     private let decoders: [any MediaImageDecoding]
-    private let processor: Processor
-    private let cache: Cache
+    private let processor: any ImageProcessor
+    private let cache: any ImageCache
     private let dataCache: any ImageDataCache
     private let fetchDeduper = ImageFetchDeduper<MediaImage>()
     private let assetDataFetchDeduper = ImageFetchDeduper<Data>()
@@ -34,7 +30,7 @@ public struct DefaultMediaImageLoader<Downloader: ImageDataDownloader, Processor
     }
 
     /// Creates a loader with an ordered list of decoders.
-    public init(
+    public init<Downloader: ImageDataDownloader, Processor: ImageProcessor, Cache: ImageCache>(
         downloader: Downloader,
         decoders: [any MediaImageDecoding],
         processor: Processor,
@@ -49,7 +45,7 @@ public struct DefaultMediaImageLoader<Downloader: ImageDataDownloader, Processor
     }
 
     /// Convenience initializer for a single decoder.
-    public init(
+    public init<Downloader: ImageDataDownloader, Processor: ImageProcessor, Cache: ImageCache>(
         downloader: Downloader,
         decoder: any MediaImageDecoding,
         processor: Processor,
@@ -66,7 +62,7 @@ public struct DefaultMediaImageLoader<Downloader: ImageDataDownloader, Processor
     }
 
     /// Compatibility initializer using the pre-media `deserializer` label.
-    public init(
+    public init<Downloader: ImageDataDownloader, Processor: ImageProcessor, Cache: ImageCache>(
         downloader: Downloader,
         deserializer: any MediaImageDecoding,
         processor: Processor,
@@ -270,9 +266,4 @@ extension DefaultMediaImageLoader: MediaImageSequenceLoading {
     }
 }
 
-public typealias DefaultImageLoader<
-    Downloader: ImageDataDownloader,
-    Processor: ImageProcessor,
-    Cache: ImageCache
-> =
-    DefaultMediaImageLoader<Downloader, Processor, Cache>
+public typealias DefaultImageLoader = DefaultMediaImageLoader

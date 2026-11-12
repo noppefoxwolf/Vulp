@@ -2,12 +2,6 @@ import SwiftUI
 import UIKit
 import VulpUI
 
-private typealias UIKitExampleLoader = DefaultMediaImageLoader<
-    DefaultImageDataDownloader,
-    DemoImageProcessorPipeline<ResizeImageProcessor, ImageSizeDebugProcessor>,
-    InMemoryImageCache
->
-
 struct UIKitImageDemoView: UIViewControllerRepresentable {
     let dataCache: DiskImageDataCache
 
@@ -20,7 +14,7 @@ struct UIKitImageDemoView: UIViewControllerRepresentable {
 
 @MainActor
 final class UIKitImageDemoViewController: UIViewController {
-    private var loader: UIKitExampleLoader
+    private var loader: DefaultMediaImageLoader
     private let dataCache: DiskImageDataCache
     private let imageView = VulpUI.AsyncImageView()
     private let imageContainer = UIView()
@@ -165,14 +159,11 @@ final class UIKitImageDemoViewController: UIViewController {
         sizeLabel.text = "画像ビュー: \(Int(sizeSlider.value)) pt四方"
     }
 
-    private static func makeLoader(showsImageSize: Bool, dataCache: DiskImageDataCache) -> UIKitExampleLoader {
-        UIKitExampleLoader(
+    private static func makeLoader(showsImageSize: Bool, dataCache: DiskImageDataCache) -> DefaultMediaImageLoader {
+        DefaultMediaImageLoader(
             downloader: DefaultImageDataDownloader(),
             decoder: ImageIOImageDecoder(),
-            processor: DemoImageProcessorPipeline(
-                ResizeImageProcessor(),
-                then: ImageSizeDebugProcessor(isEnabled: showsImageSize)
-            ),
+            processor: ResizeImageProcessor() + ImageSizeDebugProcessor(isEnabled: showsImageSize),
             cache: InMemoryImageCache(),
             dataCache: dataCache
         )

@@ -1,22 +1,16 @@
 import VulpUI
 import SwiftUI
 
-private typealias ExampleLoader = DefaultMediaImageLoader<
-    DefaultImageDataDownloader,
-    ResizeImageProcessor,
-    InMemoryImageCache
->
-
 struct LoremPicsumView: View {
     @State private var requests: [MediaImageRequest] = []
     @State private var errorMessage: String?
-    @State private var loader: ExampleLoader
+    @State private var loader: DefaultMediaImageLoader
 
     private let dataCache: DiskImageDataCache
 
     init(dataCache: DiskImageDataCache) {
         self.dataCache = dataCache
-        _loader = State(initialValue: ExampleLoader(
+        _loader = State(initialValue: DefaultMediaImageLoader(
             downloader: DefaultImageDataDownloader(),
             decoder: ImageIOImageDecoder(),
             processor: ResizeImageProcessor(),
