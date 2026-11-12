@@ -10,7 +10,7 @@ The image cache stores decoded, processed images. Animated image playback also n
 ## Decision
 
 - Add a separate `ImageDataCache` for encoded image data; do not mix source bytes into the decoded image cache.
-- Use `DiskImageDataCache` by default in `DefaultImageLoader`, keyed by `ImageAssetHandle.uniqueKey`, for both ordinary image loads and sequence loads.
+- Use `DiskImageDataCache` by default in `DefaultMediaImageLoader`, keyed by `ImageAssetHandle.uniqueKey`, for both ordinary image loads and sequence loads.
 - Bound the default disk cache to 100 MiB and seven days since last access. Allow callers to set a directory and limits, and to remove one or all entries.
 - Treat cache read and write failures as misses or best-effort writes so they do not fail image loading.
 - Keep HTTP freshness and invalidation responsibility outside this cache. Applications with mutable URLs should use versioned unique keys or explicitly remove cached data.

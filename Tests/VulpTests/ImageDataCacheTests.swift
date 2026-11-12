@@ -26,9 +26,9 @@ import Testing
         uniqueKey: "disk-cached-source"
     )
     let request = try ImageLoadRequest(assetHandle: asset, targetSize: .zero)
-    let firstLoader = DefaultImageLoader(
+    let firstLoader = DefaultMediaImageLoader(
         downloader: firstDownloader,
-        deserializer: ImageIOImageDeserializer(),
+        decoder: ImageIOImageDeserializer(),
         processor: ResizeImageProcessor(),
         cache: InMemoryImageCache(),
         dataCache: dataCache
@@ -36,9 +36,9 @@ import Testing
     _ = try await firstLoader.load(request)
 
     let secondDownloader = CountingDownloader()
-    let secondLoader = DefaultImageLoader(
+    let secondLoader = DefaultMediaImageLoader(
         downloader: secondDownloader,
-        deserializer: ImageIOImageDeserializer(),
+        decoder: ImageIOImageDeserializer(),
         processor: ResizeImageProcessor(),
         cache: InMemoryImageCache(),
         dataCache: DiskImageDataCache(directory: directory)

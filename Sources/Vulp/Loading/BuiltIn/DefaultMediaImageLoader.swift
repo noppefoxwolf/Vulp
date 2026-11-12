@@ -20,8 +20,8 @@ public struct DefaultMediaImageLoader: MediaImageLoading {
     private let processor: any ImageProcessor
     private let cache: any ImageCache
     private let dataCache: any ImageDataCache
-    private let fetchDeduper = ImageFetchDeduper<MediaImage>()
-    private let assetDataFetchDeduper = ImageFetchDeduper<Data>()
+    private let fetchDeduper = TaskDeduper<String, MediaImage>()
+    private let assetDataFetchDeduper = TaskDeduper<String, Data>()
 
     /// Removes all decoded images and encoded source data stored by this loader.
     public func clearCache() async {
@@ -59,17 +59,6 @@ public struct DefaultMediaImageLoader: MediaImageLoading {
             cache: cache,
             dataCache: dataCache
         )
-    }
-
-    /// Compatibility initializer using the pre-media `deserializer` label.
-    public init<Downloader: ImageDataDownloader, Processor: ImageProcessor, Cache: ImageCache>(
-        downloader: Downloader,
-        deserializer: any MediaImageDecoding,
-        processor: Processor,
-        cache: Cache,
-        dataCache: any ImageDataCache = DiskImageDataCache()
-    ) {
-        self.init(downloader: downloader, decoder: deserializer, processor: processor, cache: cache, dataCache: dataCache)
     }
 
     @concurrent
@@ -265,5 +254,3 @@ extension DefaultMediaImageLoader: MediaImageSequenceLoading {
         return ImageSequence(identifier: asset.uniqueKey, data: data, frameDurations: frameDurations)
     }
 }
-
-public typealias DefaultImageLoader = DefaultMediaImageLoader

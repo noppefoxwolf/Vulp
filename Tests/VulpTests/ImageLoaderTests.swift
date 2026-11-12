@@ -4,9 +4,9 @@ import Testing
 
 @Test func imageLoaderCachesAndReturnsProcessedImage() async throws {
     let cache = InMemoryImageCache()
-    let loader = DefaultImageLoader(
+    let loader = DefaultMediaImageLoader(
         downloader: DefaultImageDataDownloader(),
-        deserializer: ImageIOImageDeserializer(),
+        decoder: ImageIOImageDeserializer(),
         processor: ResizeImageProcessor(),
         cache: cache
     )
@@ -31,9 +31,9 @@ import Testing
 
     let imageCache = InMemoryImageCache()
     let dataCache = DiskImageDataCache(directory: directory)
-    let loader = DefaultImageLoader(
+    let loader = DefaultMediaImageLoader(
         downloader: DefaultImageDataDownloader(),
-        deserializer: ImageIOImageDeserializer(),
+        decoder: ImageIOImageDeserializer(),
         processor: ResizeImageProcessor(),
         cache: imageCache,
         dataCache: dataCache
@@ -52,9 +52,9 @@ import Testing
 
 @Test func imageLoaderDeduplicatesConcurrentRequests() async throws {
     let downloader = CountingDownloader()
-    let loader = DefaultImageLoader(
+    let loader = DefaultMediaImageLoader(
         downloader: downloader,
-        deserializer: ImageIOImageDeserializer(),
+        decoder: ImageIOImageDeserializer(),
         processor: ResizeImageProcessor(),
         cache: InMemoryImageCache()
     )
@@ -73,9 +73,9 @@ import Testing
 
 @Test func prefetchLoadsImageIntoSharedCache() async throws {
     let downloader = CountingDownloader()
-    let loader = DefaultImageLoader(
+    let loader = DefaultMediaImageLoader(
         downloader: downloader,
-        deserializer: ImageIOImageDeserializer(),
+        decoder: ImageIOImageDeserializer(),
         processor: ResizeImageProcessor(),
         cache: InMemoryImageCache()
     )
@@ -94,9 +94,9 @@ import Testing
 
 @Test func imagePrefetcherStartsEachURLOnceAcrossBatches() async throws {
     let downloader = CountingDownloader(delay: .milliseconds(80))
-    let loader = DefaultImageLoader(
+    let loader = DefaultMediaImageLoader(
         downloader: downloader,
-        deserializer: ImageIOImageDeserializer(),
+        decoder: ImageIOImageDeserializer(),
         processor: ResizeImageProcessor(),
         cache: InMemoryImageCache()
     )
@@ -113,9 +113,9 @@ import Testing
 
 @Test func imagePrefetcherCancelsURLsThatLeaveThePrefetchWindow() async throws {
     let downloader = CountingDownloader(delay: .seconds(2))
-    let loader = DefaultImageLoader(
+    let loader = DefaultMediaImageLoader(
         downloader: downloader,
-        deserializer: ImageIOImageDeserializer(),
+        decoder: ImageIOImageDeserializer(),
         processor: ResizeImageProcessor(),
         cache: InMemoryImageCache()
     )
@@ -132,9 +132,9 @@ import Testing
 
 @Test func imageLoadAcceptsExplicitTaskPriority() async throws {
     let downloader = CountingDownloader()
-    let loader = DefaultImageLoader(
+    let loader = DefaultMediaImageLoader(
         downloader: downloader,
-        deserializer: ImageIOImageDeserializer(),
+        decoder: ImageIOImageDeserializer(),
         processor: ResizeImageProcessor(),
         cache: InMemoryImageCache()
     )
@@ -151,9 +151,9 @@ import Testing
 
 @Test func cancellingPrefetchWaiterDoesNotCancelSharedLoad() async throws {
     let downloader = CountingDownloader(delay: .milliseconds(250))
-    let loader = DefaultImageLoader(
+    let loader = DefaultMediaImageLoader(
         downloader: downloader,
-        deserializer: ImageIOImageDeserializer(),
+        decoder: ImageIOImageDeserializer(),
         processor: ResizeImageProcessor(),
         cache: InMemoryImageCache()
     )
@@ -175,9 +175,9 @@ import Testing
 
 @Test func cancellingOnlyPrefetchCancelsUnderlyingLoadAndAllowsRetry() async throws {
     let downloader = CountingDownloader(delay: .seconds(2))
-    let loader = DefaultImageLoader(
+    let loader = DefaultMediaImageLoader(
         downloader: downloader,
-        deserializer: ImageIOImageDeserializer(),
+        decoder: ImageIOImageDeserializer(),
         processor: ResizeImageProcessor(),
         cache: InMemoryImageCache()
     )
@@ -200,9 +200,9 @@ import Testing
 
 @Test func imageLoaderDeduplicatesConcurrentAssetDownloadsAcrossRequests() async throws {
     let downloader = CountingDownloader(delay: .milliseconds(250))
-    let loader = DefaultImageLoader(
+    let loader = DefaultMediaImageLoader(
         downloader: downloader,
-        deserializer: ImageIOImageDeserializer(),
+        decoder: ImageIOImageDeserializer(),
         processor: ResizeImageProcessor(),
         cache: InMemoryImageCache()
     )
@@ -223,9 +223,9 @@ import Testing
 @Test func imageLoaderUsesFallbackWithoutCachingIt() async throws {
     let fallback = try await TestImageData.image()
     let cache = LRUImageCache()
-    let loader = DefaultImageLoader(
+    let loader = DefaultMediaImageLoader(
         downloader: FailingDownloader(),
-        deserializer: ImageIOImageDeserializer(),
+        decoder: ImageIOImageDeserializer(),
         processor: ResizeImageProcessor(),
         cache: cache
     )
@@ -244,9 +244,9 @@ import Testing
 
 @Test func cancellingOneWaiterDoesNotCancelTheSharedLoad() async throws {
     let downloader = CountingDownloader(delay: .milliseconds(250))
-    let loader = DefaultImageLoader(
+    let loader = DefaultMediaImageLoader(
         downloader: downloader,
-        deserializer: ImageIOImageDeserializer(),
+        decoder: ImageIOImageDeserializer(),
         processor: ResizeImageProcessor(),
         cache: InMemoryImageCache()
     )
