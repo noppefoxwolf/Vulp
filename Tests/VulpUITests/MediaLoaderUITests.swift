@@ -11,9 +11,9 @@ private func decodeFixture(_ data: Data) async throws -> MediaImage {
     return try await ImageIOImageDecoder().decode(from: url, options: .firstFrame, maximumPixelDimension: nil)
 }
 
-private struct TestImageLoader: ImageLoading {
+private struct TestImageLoader: MediaImageLoading {
     @concurrent
-    func load<Request: ImageRequest>(_ request: Request, priority: TaskPriority) async throws -> MediaImage {
+    func load<Request: MediaImageRequestProtocol>(_ request: Request, priority: TaskPriority) async throws -> MediaImage {
         let isolation: (any Actor)? = #isolation
         if let isolation {
             throw TestImageLoaderError.unexpectedActorIsolation(String(describing: isolation))
@@ -82,7 +82,7 @@ private actor ImageLoadLifecycleProbe {
     }
 }
 
-private struct CancellationTrackingImageLoader: ImageLoading {
+private struct CancellationTrackingImageLoader: MediaImageLoading {
     let probe: ImageLoadLifecycleProbe
 
     @concurrent
@@ -104,6 +104,38 @@ private struct CancellationTrackingImageLoader: ImageLoading {
         let image = try await decodeFixture(data)
         await probe.didCompleteLoad()
         return image
+    }
+}
+
+private actor SequenceRequestRoutingProbe {
+    private(set) var firstFrameRequestCount = 0
+    private(set) var indexedFrameRequestCount = 0
+
+    func record(_ options: ImageDecodingOptions) {
+        switch options {
+        case .firstFrame:
+            firstFrameRequestCount += 1
+        case .frame:
+            indexedFrameRequestCount += 1
+        }
+    }
+}
+
+private struct SequenceRequestRoutingImageLoader: MediaImageLoading {
+    let probe: SequenceRequestRoutingProbe
+
+    @concurrent
+    func loadSequence(from asset: any MediaAsset) async throws -> ImageSequence {
+        try await MediaImageLoader.default.loadSequence(from: asset)
+    }
+
+    @concurrent
+    func load<Request: MediaImageRequestProtocol>(
+        _ request: Request,
+        priority: TaskPriority
+    ) async throws -> MediaImage {
+        await probe.record(request.decodingOptions)
+        return try await MediaImageLoader.default.load(request, priority: priority)
     }
 }
 
@@ -160,7 +192,7 @@ private struct SuccessfulLoadCountingImageLoader: MediaImageSequenceLoading {
 #endif
 
 @Test @MainActor func umbrellaProductExposesSwiftUIAsyncImageTimelineView() throws {
-    let request = try ImageLoadRequest(
+    let request = try MediaImageRequest(
         asset: DataMediaAsset(data: Data(), uniqueKey: "swiftui-view"),
         targetSize: .zero
     )
@@ -176,7 +208,7 @@ private struct SuccessfulLoadCountingImageLoader: MediaImageSequenceLoading {
     let view = VulpUI.AsyncImageTimelineView(
         loader: TestImageLoader(),
         request: { targetSize, scale in
-            try ImageLoadRequest(
+            try MediaImageRequest(
                 asset: DataMediaAsset(data: Data(), uniqueKey: "swiftui-builder"),
                 targetSize: targetSize ?? .zero,
                 scale: scale
@@ -214,7 +246,7 @@ private struct SuccessfulLoadCountingImageLoader: MediaImageSequenceLoading {
 }
 
 @Test @MainActor func imageLoaderCanRunFromMainActorWithoutInheritingItsIsolation() async throws {
-    let request = try ImageLoadRequest(
+    let request = try MediaImageRequest(
         asset: DataMediaAsset(data: Data(), uniqueKey: "main-actor-test"),
         targetSize: .zero
     )
@@ -229,7 +261,7 @@ private struct SuccessfulLoadCountingImageLoader: MediaImageSequenceLoading {
         "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jZ1sAAAAASUVORK5CYII="
     )!
     let asset = DataMediaAsset(data: data, uniqueKey: "main-actor-pipeline")
-    let request = try ImageLoadRequest(
+    let request = try MediaImageRequest(
         asset: asset,
         targetSize: CGSize(width: 8, height: 8)
     )
@@ -360,7 +392,7 @@ private func findAsyncImageView(in view: UIView) -> AsyncImageView? {
     window.addSubview(view)
 
     view.loadImage(using: loader) { _, _ in
-        try ImageLoadRequest(
+        try MediaImageRequest(
             asset: DataMediaAsset(data: Data([0]), uniqueKey: "detach-reload-test"),
             targetSize: CGSize(width: 80, height: 80)
         )
@@ -387,7 +419,7 @@ private func findAsyncImageView(in view: UIView) -> AsyncImageView? {
     window.addSubview(view)
 
     view.loadImage(using: loader) { _, _ in
-        try ImageLoadRequest(
+        try MediaImageRequest(
             asset: DataMediaAsset(data: Data([0]), uniqueKey: "successful-request-reappear"),
             targetSize: CGSize(width: 80, height: 80)
         )
@@ -413,7 +445,7 @@ private func findAsyncImageView(in view: UIView) -> AsyncImageView? {
     view.loadImage(
         using: TestImageLoader(),
         request: { targetSize, scale in
-            try ImageLoadRequest(
+            try MediaImageRequest(
                 asset: asset,
                 targetSize: targetSize ?? CGSize(width: 120, height: 80),
                 scale: scale
@@ -444,10 +476,33 @@ private func findAsyncImageView(in view: UIView) -> AsyncImageView? {
     #expect(view.image != nil)
 }
 
+@Test @MainActor func uiKitRequestAutomaticallyUsesSequenceFramesWhenAvailable() async throws {
+    let probe = SequenceRequestRoutingProbe()
+    let loader = SequenceRequestRoutingImageLoader(probe: probe)
+    let asset = DataMediaAsset(data: AnimatedGIFFixture.data, uniqueKey: "request-sequence-routing")
+    let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 16, height: 16))
+    let view = AsyncImageView(frame: window.bounds)
+    window.addSubview(view)
+
+    let result: Result<CGImage, any Error> = await withCheckedContinuation { continuation in
+        view.loadImage(
+            using: loader,
+            request: { _, _ in
+                try MediaImageRequest(asset: asset, targetSize: CGSize(width: 16, height: 16))
+            },
+            onCompletion: { continuation.resume(returning: $0) }
+        )
+    }
+
+    #expect(try result.get().width == 16)
+    #expect(await probe.indexedFrameRequestCount > 0)
+    #expect(await probe.firstFrameRequestCount == 0)
+}
+
 @Test @MainActor func swiftUIImageDoesNotReloadSuccessfulRequestWhenReappearing() async throws {
     let probe = ImageLoadLifecycleProbe()
     let loader = SuccessfulLoadCountingImageLoader(probe: probe)
-    let request = try ImageLoadRequest(
+    let request = try MediaImageRequest(
         asset: DataMediaAsset(data: Data([0]), uniqueKey: "swiftui-reappear-success"),
         targetSize: CGSize(width: 16, height: 16)
     )

@@ -13,7 +13,7 @@ public enum MediaImageLoader {
 }
 
 
-public struct DefaultMediaImageLoader: MediaImageLoading {
+public struct DefaultMediaImageLoader: MediaImageSequenceLoading {
     private let downloader: any AssetDataDownloader
     private let decoders: [any MediaImageDecoding]
     private let processor: any ImageProcessor
@@ -238,7 +238,7 @@ public struct DefaultMediaImageLoader: MediaImageLoading {
     }
 }
 
-extension DefaultMediaImageLoader: MediaImageSequenceLoading {
+extension DefaultMediaImageLoader {
     @concurrent
     public func loadSequence(from asset: any MediaAsset) async throws -> ImageSequence {
         let (sourceURL, isTemporary) = try await sourceFileURL(for: asset, priority: .userInitiated)

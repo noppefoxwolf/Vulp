@@ -4,8 +4,6 @@ public enum MediaImageRequestError: Error, Equatable {
     case invalidTargetSize
 }
 
-public typealias ImageLoadRequestError = MediaImageRequestError
-
 /// The first concrete request type used by the standard image-loading pipeline.
 public struct MediaImageRequest: MediaImageRequestProtocol {
     public let asset: any MediaAsset
@@ -68,5 +66,3 @@ public struct MediaImageRequest: MediaImageRequestProtocol {
         }
     }
 }
-
-public typealias ImageLoadRequest = MediaImageRequest

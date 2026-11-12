@@ -7,8 +7,6 @@ public protocol MediaImageRequestProtocol: Sendable {
     var decodingOptions: ImageDecodingOptions { get }
 }
 
-public typealias ImageRequest = MediaImageRequestProtocol
-
 public extension MediaImageRequestProtocol {
     var decodingOptions: ImageDecodingOptions { .firstFrame }
 }

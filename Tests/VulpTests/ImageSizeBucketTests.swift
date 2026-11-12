@@ -15,8 +15,8 @@ import Testing
 
 @Test func imageSizeBucketUsesSameTierForNearbySizes() throws {
     let asset = DataMediaAsset(data: TestImageData.png, uniqueKey: "bucket")
-    let first = try ImageLoadRequest(asset: asset, targetSize: CGSize(width: 300, height: 200))
-    let second = try ImageLoadRequest(asset: asset, targetSize: CGSize(width: 320, height: 213))
+    let first = try MediaImageRequest(asset: asset, targetSize: CGSize(width: 300, height: 200))
+    let second = try MediaImageRequest(asset: asset, targetSize: CGSize(width: 320, height: 213))
 
     #expect(first.targetSize == CGSize(width: 362, height: 241))
     #expect(second.targetSize == first.targetSize)

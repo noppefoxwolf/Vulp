@@ -12,9 +12,18 @@ public protocol MediaImageLoading: Sendable {
         _ asset: any MediaAsset,
         priority: TaskPriority
     ) -> Task<Void, Never>
+
+    @concurrent
+    func loadSequence(from asset: any MediaAsset) async throws -> ImageSequence
 }
 
 public extension MediaImageLoading {
+    /// Reports unsupported sequence loading unless the loader provides a sequence implementation.
+    @concurrent
+    func loadSequence(from asset: any MediaAsset) async throws -> ImageSequence {
+        throw ImageSequenceError.unsupportedMediaSource
+    }
+
     /// Loads a request at user-initiated priority.
     @concurrent
     func load<Request: MediaImageRequestProtocol>(_ request: Request) async throws -> MediaImage {
@@ -43,5 +52,3 @@ public extension MediaImageLoading {
         return task
     }
 }
-
-public typealias ImageLoading = MediaImageLoading

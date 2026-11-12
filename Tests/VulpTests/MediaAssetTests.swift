@@ -38,7 +38,7 @@ struct CustomAsset: MediaAsset {
         url: URL(string: "https://example.com/a.png")!,
         uniqueKey: "avatar"
     )
-    let request = try ImageLoadRequest(
+    let request = try MediaImageRequest(
         asset: asset,
         targetSize: CGSize(width: 40, height: 30)
     )
@@ -49,8 +49,8 @@ struct CustomAsset: MediaAsset {
 @Test func requestRejectsNegativeDimensions() {
     let asset = DataMediaAsset(data: TestImageData.png, uniqueKey: "fixture")
 
-    #expect(throws: ImageLoadRequestError.invalidTargetSize) {
-        try ImageLoadRequest(
+    #expect(throws: MediaImageRequestError.invalidTargetSize) {
+        try MediaImageRequest(
             asset: asset,
             targetSize: CGSize(width: -1, height: 10)
         )

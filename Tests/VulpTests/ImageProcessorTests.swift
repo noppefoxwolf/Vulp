@@ -6,7 +6,7 @@ import Testing
 @Test func imageProcessorChainRunsProcessorsInOrder() async throws {
     let source = try await TestImageData.image()
     let asset = DataMediaAsset(data: TestImageData.png, uniqueKey: "processor-chain")
-    let request = try ImageLoadRequest(asset: asset, targetSize: .zero)
+    let request = try MediaImageRequest(asset: asset, targetSize: .zero)
     let recorder = ProcessorCallRecorder()
     let processor = NamedImageProcessor(name: "first", recorder: recorder)
         + NamedImageProcessor(name: "second", recorder: recorder)
@@ -20,7 +20,7 @@ import Testing
 @Test func resizeProcessorDoesNotUpscaleSmallSourceToBucketSize() async throws {
     let source = try await TestImageData.image()
     let asset = DataMediaAsset(data: TestImageData.png, uniqueKey: "fixture")
-    let request = try ImageLoadRequest(
+    let request = try MediaImageRequest(
         asset: asset,
         targetSize: CGSize(width: 12, height: 8)
     )
@@ -34,7 +34,7 @@ import Testing
 @Test func resizeProcessorDownsamplesWithoutChangingSourceAspectRatio() async throws {
     let source = try processorFixtureImage()
     let asset = DataMediaAsset(data: TestImageData.png, uniqueKey: "fit-resize")
-    let request = try ImageLoadRequest(
+    let request = try MediaImageRequest(
         asset: asset,
         targetSize: CGSize(width: 8, height: 8)
     )
@@ -48,7 +48,7 @@ import Testing
 @Test func resizeProcessorReturnsSourceForZeroSizedRequest() async throws {
     let source = try await TestImageData.image()
     let asset = DataMediaAsset(data: TestImageData.png, uniqueKey: "fixture")
-    let request = try ImageLoadRequest(
+    let request = try MediaImageRequest(
         asset: asset,
         targetSize: .zero
     )
@@ -70,7 +70,7 @@ private struct NamedImageProcessor: ImageProcessor {
     let name: String
     let recorder: ProcessorCallRecorder
 
-    func process<Request: ImageRequest>(
+    func process<Request: MediaImageRequestProtocol>(
         _ image: MediaImage,
         for request: Request
     ) async throws -> MediaImage {

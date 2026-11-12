@@ -59,9 +59,5 @@ public struct ImageSequence: Sendable {
     }
 }
 
-public protocol MediaImageSequenceLoading: MediaImageLoading {
-    @concurrent
-    func loadSequence(from asset: any MediaAsset) async throws -> ImageSequence
-}
-
-public typealias ImageSequenceLoading = MediaImageSequenceLoading
+/// Marks loaders used by APIs that explicitly require sequence support.
+public protocol MediaImageSequenceLoading: MediaImageLoading {}

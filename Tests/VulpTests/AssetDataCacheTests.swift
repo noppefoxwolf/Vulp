@@ -28,7 +28,7 @@ import Testing
         url: URL(string: "https://example.com/disk-cached-source.png")!,
         uniqueKey: "disk-cached-source"
     )
-    let request = try ImageLoadRequest(asset: asset, targetSize: .zero)
+    let request = try MediaImageRequest(asset: asset, targetSize: .zero)
     let firstLoader = DefaultMediaImageLoader(
         downloader: firstDownloader,
         decoders: [ImageIOImageDecoder()],

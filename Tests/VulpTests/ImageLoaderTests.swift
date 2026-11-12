@@ -11,7 +11,7 @@ import Testing
         cache: cache
     )
     let asset = DataMediaAsset(data: TestImageData.png, uniqueKey: "fixture")
-    let request = try ImageLoadRequest(
+    let request = try MediaImageRequest(
         asset: asset,
         targetSize: CGSize(width: 6, height: 4)
     )
@@ -62,7 +62,7 @@ import Testing
         url: URL(string: "https://example.com/shared-flight.png")!,
         uniqueKey: "shared-flight-\(UUID().uuidString)"
     )
-    let request = try ImageLoadRequest(asset: asset, targetSize: .zero)
+    let request = try MediaImageRequest(asset: asset, targetSize: .zero)
 
     async let first: Void = { _ = try await loader.load(request) }()
     async let second: Void = { _ = try await loader.load(request) }()
@@ -83,7 +83,7 @@ import Testing
         url: URL(string: "https://example.com/prefetch.png")!,
         uniqueKey: "prefetch-\(UUID().uuidString)"
     )
-    let request = try ImageLoadRequest(asset: asset, targetSize: .zero)
+    let request = try MediaImageRequest(asset: asset, targetSize: .zero)
 
     let prefetch = loader.prefetch(asset)
     await prefetch.value
@@ -142,7 +142,7 @@ import Testing
         url: URL(string: "https://example.com/priority.png")!,
         uniqueKey: "priority-\(UUID().uuidString)"
     )
-    let request = try ImageLoadRequest(asset: asset, targetSize: .zero)
+    let request = try MediaImageRequest(asset: asset, targetSize: .zero)
 
     _ = try await loader.load(request, priority: .background)
 
@@ -161,7 +161,7 @@ import Testing
         url: URL(string: "https://example.com/prefetch-cancel.png")!,
         uniqueKey: "prefetch-cancel-\(UUID().uuidString)"
     )
-    let request = try ImageLoadRequest(asset: asset, targetSize: .zero)
+    let request = try MediaImageRequest(asset: asset, targetSize: .zero)
     let prefetch = loader.prefetch(asset)
     let visibleLoad = Task { try await loader.load(request) }
     try await Task.sleep(for: .milliseconds(30))
@@ -185,7 +185,7 @@ import Testing
         url: URL(string: "https://example.com/prefetch-only-cancel.png")!,
         uniqueKey: "prefetch-only-cancel-\(UUID().uuidString)"
     )
-    let request = try ImageLoadRequest(asset: asset, targetSize: .zero)
+    let request = try MediaImageRequest(asset: asset, targetSize: .zero)
     let prefetch = loader.prefetch(asset)
     try await Task.sleep(for: .milliseconds(50))
 
@@ -210,8 +210,8 @@ import Testing
         url: URL(string: "https://example.com/shared-asset.png")!,
         uniqueKey: "shared-asset-\(UUID().uuidString)"
     )
-    let smallRequest = try ImageLoadRequest(asset: asset, targetSize: CGSize(width: 8, height: 8))
-    let largeRequest = try ImageLoadRequest(asset: asset, targetSize: CGSize(width: 16, height: 16))
+    let smallRequest = try MediaImageRequest(asset: asset, targetSize: CGSize(width: 8, height: 8))
+    let largeRequest = try MediaImageRequest(asset: asset, targetSize: CGSize(width: 16, height: 16))
 
     async let small: Void = { _ = try await loader.load(smallRequest) }()
     async let large: Void = { _ = try await loader.load(largeRequest) }()
@@ -234,7 +234,7 @@ import Testing
         uniqueKey: "with-fallback",
         fallbackImage: fallback
     )
-    let request = try ImageLoadRequest(asset: asset, targetSize: .zero)
+    let request = try MediaImageRequest(asset: asset, targetSize: .zero)
 
     let result = try await loader.load(request)
 
@@ -254,7 +254,7 @@ import Testing
         url: URL(string: "https://example.com/cancel-waiter.png")!,
         uniqueKey: "cancel-waiter-\(UUID().uuidString)"
     )
-    let request = try ImageLoadRequest(asset: asset, targetSize: .zero)
+    let request = try MediaImageRequest(asset: asset, targetSize: .zero)
     let leader = Task { _ = try await loader.load(request) }
     try await Task.sleep(for: .milliseconds(30))
     let waiter = Task { _ = try await loader.load(request) }

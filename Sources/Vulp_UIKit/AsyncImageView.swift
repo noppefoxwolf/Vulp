@@ -8,11 +8,8 @@ public final class AsyncImageView: UIView {
     private let sequencePlayback = ImageSequencePlayback()
     private var displayedImage: CGImage?
     private var makeImageOperation: (@MainActor @Sendable (CGSize?, CGFloat) -> ImageLoadingOperation?)?
-    private var restartImageLoadOnAttach: (@MainActor @Sendable () -> Void)?
     private var currentCacheIdentifier: String?
     private var loadedCacheIdentifier: String?
-    private var loadedStaticSequenceIdentifier: String?
-    private var currentSequenceIdentifier: String?
     private var lastRequestLayoutKey: RequestLayoutKey?
     private var imageLoadTask: Task<Void, Never>?
     private var imageCompletionHandler: (@MainActor @Sendable (Result<CGImage, any Error>) -> Void)?
@@ -32,15 +29,7 @@ public final class AsyncImageView: UIView {
     public var image: CGImage? {
         get { displayedImage }
         set {
-            imageLoadTask?.cancel()
-            imageLoadTask = nil
-            makeImageOperation = nil
-            restartImageLoadOnAttach = nil
-            currentCacheIdentifier = nil
-            loadedCacheIdentifier = nil
-            loadedStaticSequenceIdentifier = nil
-            currentSequenceIdentifier = nil
-            sequencePlayback.stop()
+            resetForNewImageSource()
             setDisplayedImage(newValue)
         }
     }
@@ -60,128 +49,32 @@ public final class AsyncImageView: UIView {
         return CGSize(width: image.width, height: image.height)
     }
 
-    /// Loads and plays an image source from a URL at this view's current pixel size.
-    public func loadImage(
-        url: URL,
+    /// Loads a request at this view's point bounds and display scale, playing multiple frames when supported.
+    public func loadImage<Request: MediaImageRequestProtocol, Loader: MediaImageLoading>(
+        using loader: Loader = MediaImageLoader.default,
         levelOfIntegrity: Double = 1,
         prefetchCount: Int = 3,
-        onCompletion: (@MainActor @Sendable (Result<CGImage, any Error>) -> Void)? = nil
-    ) {
-        imageLoadTask?.cancel()
-        imageLoadTask = nil
-        makeImageOperation = nil
-        currentCacheIdentifier = nil
-        loadedCacheIdentifier = nil
-        loadedStaticSequenceIdentifier = nil
-        currentSequenceIdentifier = nil
-        let asset = RemoteMediaAsset(url: url)
-        restartImageLoadOnAttach = { [weak self] in
-            self?.startImageLoad(
-                asset: asset,
-                levelOfIntegrity: levelOfIntegrity,
-                prefetchCount: prefetchCount,
-                onCompletion: onCompletion
-            )
-        }
-        sequencePlayback.stop()
-        imageCompletionHandler = onCompletion
-        setDisplayedImage(nil)
-        if window != nil {
-            startImageLoad(
-                asset: asset,
-                levelOfIntegrity: levelOfIntegrity,
-                prefetchCount: prefetchCount,
-                onCompletion: onCompletion
-            )
-        }
-    }
-
-    /// Loads an image source and plays it when it contains multiple frames.
-    public func loadImage(
-        asset: any MediaAsset,
-        targetSize: CGSize,
-        levelOfIntegrity: Double = 1,
-        prefetchCount: Int = 3
-    ) async throws {
-        try await loadImage(
-            asset: asset,
-            using: MediaImageLoader.default,
-            targetSize: targetSize,
-            levelOfIntegrity: levelOfIntegrity,
-            prefetchCount: prefetchCount
-        )
-    }
-
-    /// Loads an image source and plays it when it contains multiple frames.
-    public func loadImage<Loader: MediaImageSequenceLoading>(
-        asset: any MediaAsset,
-        using loader: Loader,
-        targetSize: CGSize,
-        levelOfIntegrity: Double = 1,
-        prefetchCount: Int = 3
-    ) async throws {
-        imageLoadTask?.cancel()
-        imageLoadTask = nil
-        makeImageOperation = nil
-        restartImageLoadOnAttach = nil
-        currentCacheIdentifier = nil
-        loadedCacheIdentifier = nil
-        loadedStaticSequenceIdentifier = nil
-        currentSequenceIdentifier = nil
-        let sequence = try await loader.loadSequence(from: asset)
-        let playbackPlan = await sequence.playbackPlan(levelOfIntegrity: levelOfIntegrity)
-        let frameLoader = ImageSequenceFrameLoader(
-            sequence: sequence,
-            using: loader,
-            targetSize: targetSize,
-            prefetchCount: prefetchCount,
-            playbackFrameIndices: playbackPlan.frameIndices
-        )
-        guard let firstIndex = playbackPlan.frameIndices.first else { return }
-        let firstFrame = try await frameLoader.frame(at: firstIndex)
-        try Task.checkCancellation()
-        sequencePlayback.play(
-            firstFrame: firstFrame,
-            frameLoader: frameLoader,
-            frameIndices: playbackPlan.frameIndices,
-            isAnimated: playbackPlan.isAnimated,
-            frameInterval: playbackPlan.frameRate.frameDuration,
-            view: self
-        )
-    }
-
-    /// Loads a request at this view's point bounds and display scale, updating when its cache tier changes.
-    public func loadImage<Request: MediaImageRequestProtocol>(
-        request: @escaping @MainActor @Sendable (CGSize?) throws -> Request,
-        onCompletion: (@MainActor @Sendable (Result<CGImage, any Error>) -> Void)? = nil
-    ) {
-        loadImage(
-            using: MediaImageLoader.default,
-            request: { targetSize, _ in try request(targetSize) },
-            onCompletion: onCompletion
-        )
-    }
-
-    /// Loads a request at this view's point bounds and display scale, updating when its cache tier changes.
-    public func loadImage<Request: MediaImageRequestProtocol, Loader: MediaImageLoading>(
-        using loader: Loader,
         request: @escaping @MainActor @Sendable (CGSize?, CGFloat) throws -> Request,
         onCompletion: (@MainActor @Sendable (Result<CGImage, any Error>) -> Void)? = nil
     ) {
-        imageLoadTask?.cancel()
-        restartImageLoadOnAttach = nil
+        cancelImageLoadTask()
         sequencePlayback.stop()
         currentCacheIdentifier = nil
         lastRequestLayoutKey = nil
-        loadedStaticSequenceIdentifier = nil
-        currentSequenceIdentifier = nil
         imageCompletionHandler = onCompletion
         makeImageOperation = { targetSize, scale in
             do {
                 let imageRequest = try request(targetSize, scale)
                 return ImageLoadingOperation(
                     cacheIdentifier: imageRequest.cacheIdentifier,
-                    load: { try await loader.load(imageRequest) }
+                    load: {
+                        try await Self.loadImageRequest(
+                            imageRequest,
+                            using: loader,
+                            levelOfIntegrity: levelOfIntegrity,
+                            prefetchCount: prefetchCount
+                        )
+                    }
                 )
             } catch {
                 return nil
@@ -219,9 +112,6 @@ public final class AsyncImageView: UIView {
     public override func layoutSubviews() {
         super.layoutSubviews()
         updateImageIfNeeded()
-        if restartImageLoadOnAttach != nil {
-            restartImageLoadIfNeeded()
-        }
     }
 
     public override func willMove(toSuperview newSuperview: UIView?) {
@@ -234,7 +124,7 @@ public final class AsyncImageView: UIView {
     public override func didMoveToSuperview() {
         super.didMoveToSuperview()
         guard superview != nil, window != nil else { return }
-        restartImageLoadIfNeeded()
+        updateImageIfNeeded()
     }
 
     public override func didMoveToWindow() {
@@ -244,30 +134,21 @@ public final class AsyncImageView: UIView {
             return
         }
 
-        restartImageLoadIfNeeded()
+        updateImageIfNeeded()
     }
 
-    private func restartImageLoadIfNeeded() {
-        if let restartImageLoadOnAttach {
-            restartImageLoadOnAttach()
-        } else {
-            updateImageIfNeeded()
-        }
+    func resetForNewImageSource() {
+        cancelImageLoadTask()
+        makeImageOperation = nil
+        currentCacheIdentifier = nil
+        loadedCacheIdentifier = nil
+        lastRequestLayoutKey = nil
+        sequencePlayback.stop()
     }
 
-    private func contentsGravity(for contentMode: UIView.ContentMode) -> CALayerContentsGravity {
-        switch contentMode {
-        case .scaleToFill, .redraw:
-            .resize
-        case .scaleAspectFit:
-            .resizeAspect
-        case .scaleAspectFill:
-            .resizeAspectFill
-        case .center:
-            .center
-        default:
-            .resizeAspect
-        }
+    private func cancelImageLoadTask() {
+        imageLoadTask?.cancel()
+        imageLoadTask = nil
     }
 
     fileprivate func setDisplayedImage(_ image: CGImage?) {
@@ -286,6 +167,27 @@ public final class AsyncImageView: UIView {
         previousSize != updatedSize
     }
 
+    func displayLoadedContent(
+        _ content: ImageLoadingResult,
+        cacheIdentifier: String,
+        notifyCompletion: Bool = true
+    ) {
+        switch content {
+        case .still(let image):
+            loadedCacheIdentifier = cacheIdentifier
+            setDisplayedImage(image)
+            if notifyCompletion {
+                imageCompletionHandler?(.success(image))
+            }
+        case .sequence(let playback):
+            loadedCacheIdentifier = nil
+            sequencePlayback.play(playback, view: self)
+            if notifyCompletion {
+                imageCompletionHandler?(.success(playback.firstFrame))
+            }
+        }
+    }
+
     private func updateDisplayedContents() {
         CATransaction.begin()
         CATransaction.setDisableActions(true)
@@ -293,22 +195,10 @@ public final class AsyncImageView: UIView {
         CATransaction.commit()
     }
 
-    private func updateLayerGravity() {
-        let gravity = contentsGravity(for: contentMode)
-        guard layer.contentsGravity != gravity else { return }
-        CATransaction.begin()
-        CATransaction.setDisableActions(true)
-        layer.contentsGravity = gravity
-        CATransaction.commit()
-    }
-
     private func registerForDisplayScaleChanges() {
         registerForTraitChanges([UITraitDisplayScale.self]) { (self: AsyncImageView, _) in
             self.currentCacheIdentifier = nil
             self.updateImageIfNeeded()
-            if self.restartImageLoadOnAttach != nil {
-                self.restartImageLoadIfNeeded()
-            }
         }
     }
 
@@ -333,8 +223,8 @@ public final class AsyncImageView: UIView {
         guard operation.cacheIdentifier != currentCacheIdentifier else { return }
 
         currentCacheIdentifier = operation.cacheIdentifier
-        imageLoadTask?.cancel()
-        imageLoadTask = nil
+        cancelImageLoadTask()
+        sequencePlayback.stop()
         if loadedCacheIdentifier == operation.cacheIdentifier, let displayedImage {
             setDisplayedImage(displayedImage)
             return
@@ -349,9 +239,7 @@ public final class AsyncImageView: UIView {
                 else {
                     return
                 }
-                self.loadedCacheIdentifier = operation.cacheIdentifier
-                self.setDisplayedImage(image)
-                self.imageCompletionHandler?(.success(image))
+                self.displayLoadedContent(image, cacheIdentifier: operation.cacheIdentifier)
             } catch is CancellationError {
                 return
             } catch {
@@ -370,96 +258,89 @@ public final class AsyncImageView: UIView {
         let scale: CGFloat
     }
 
-    private func startImageLoad(
-        asset: any MediaAsset,
+    static func loadImageRequest<Request: MediaImageRequestProtocol, Loader: MediaImageLoading>(
+        _ request: Request,
+        using loader: Loader,
         levelOfIntegrity: Double,
-        prefetchCount: Int,
-        onCompletion: (@MainActor @Sendable (Result<CGImage, any Error>) -> Void)?
-    ) {
-        guard window != nil else { return }
+        prefetchCount: Int
+    ) async throws -> ImageLoadingResult {
+        if case .firstFrame = request.decodingOptions,
+           let playback = try await sequencePlaybackOperation(
+               using: loader,
+               asset: request.asset,
+               targetSize: request.targetSize,
+               levelOfIntegrity: levelOfIntegrity,
+               prefetchCount: prefetchCount
+           ) {
+            return .sequence(playback)
+        }
 
-        let scale = traitCollection.displayScale
-        guard bounds.width > 0, bounds.height > 0 else { return }
-        let targetSize = CGSize(
-            width: (bounds.width * scale).rounded(.up),
-            height: (bounds.height * scale).rounded(.up)
+        return .still(try await loader.load(request))
+    }
+
+    private static func sequencePlaybackOperation<Loader: MediaImageLoading>(
+        using loader: Loader,
+        asset: any MediaAsset,
+        targetSize: CGSize,
+        levelOfIntegrity: Double,
+        prefetchCount: Int
+    ) async throws -> SequencePlaybackOperation? {
+        let sequence: ImageSequence
+        do {
+            sequence = try await loader.loadSequence(from: asset)
+        } catch ImageSequenceError.unsupportedMediaSource {
+            return nil
+        }
+
+        let plan = await sequence.playbackPlan(levelOfIntegrity: levelOfIntegrity)
+        guard plan.isAnimated, let firstIndex = plan.frameIndices.first else { return nil }
+
+        let frameLoader = ImageSequenceFrameLoader(
+            sequence: sequence,
+            using: loader,
+            targetSize: targetSize,
+            prefetchCount: prefetchCount,
+            playbackFrameIndices: plan.frameIndices
         )
-        let sequenceIdentifier = "\(asset.uniqueKey)|\(targetSize.width)x\(targetSize.height)|integrity:\(levelOfIntegrity)|prefetch:\(prefetchCount)"
-        guard currentSequenceIdentifier != sequenceIdentifier else { return }
-
-        currentSequenceIdentifier = sequenceIdentifier
-        imageLoadTask?.cancel()
-        imageLoadTask = nil
-        sequencePlayback.stop()
-        guard loadedStaticSequenceIdentifier != sequenceIdentifier || image == nil else { return }
-        let loader = MediaImageLoader.default
-        imageLoadTask = Task { @MainActor [weak self] in
-            do {
-                let sequence = try await loader.loadSequence(from: asset)
-                let playbackPlan = await sequence.playbackPlan(levelOfIntegrity: levelOfIntegrity)
-                let frameLoader = ImageSequenceFrameLoader(
-                    sequence: sequence,
-                    using: loader,
-                    targetSize: targetSize,
-                    prefetchCount: prefetchCount,
-                    playbackFrameIndices: playbackPlan.frameIndices
-                )
-                guard let firstIndex = playbackPlan.frameIndices.first else { return }
-                let firstFrame: CGImage
-                do {
-                    firstFrame = try await frameLoader.frame(at: firstIndex)
-                } catch {
-                    await frameLoader.cancel()
-                    throw error
-                }
-                try Task.checkCancellation()
-                guard let self,
-                      self.currentSequenceIdentifier == sequenceIdentifier
-                else {
-                    await frameLoader.cancel()
-                    return
-                }
-                self.loadedStaticSequenceIdentifier = !playbackPlan.isAnimated
-                    ? sequenceIdentifier
-                    : nil
-                self.sequencePlayback.play(
-                    firstFrame: firstFrame,
-                    frameLoader: frameLoader,
-                    frameIndices: playbackPlan.frameIndices,
-                    isAnimated: playbackPlan.isAnimated,
-                    frameInterval: playbackPlan.frameRate.frameDuration,
-                    view: self
-                )
-                onCompletion?(.success(firstFrame))
-                self.imageLoadTask = nil
-            } catch is CancellationError {
-                return
-            } catch {
-                guard let self,
-                      self.currentSequenceIdentifier == sequenceIdentifier
-                else {
-                    return
-                }
-                self.currentSequenceIdentifier = nil
-                self.imageLoadTask = nil
-                onCompletion?(.failure(error))
-            }
+        do {
+            let firstFrame = try await frameLoader.frame(at: firstIndex)
+            return SequencePlaybackOperation(
+                firstFrame: firstFrame,
+                frameIndices: plan.frameIndices,
+                frameInterval: plan.frameRate.frameDuration,
+                loadFrame: { index in try await frameLoader.frame(at: index) },
+                cancelFrameLoading: { await frameLoader.cancel() }
+            )
+        } catch {
+            await frameLoader.cancel()
+            throw error
         }
     }
 
     private func cancelImageLoadForDetachment() {
-        imageLoadTask?.cancel()
-        imageLoadTask = nil
+        cancelImageLoadTask()
         currentCacheIdentifier = nil
         lastRequestLayoutKey = nil
-        currentSequenceIdentifier = nil
         sequencePlayback.stop()
     }
 }
 
 private struct ImageLoadingOperation {
     let cacheIdentifier: String
-    let load: @MainActor @Sendable () async throws -> CGImage
+    let load: @MainActor @Sendable () async throws -> ImageLoadingResult
+}
+
+enum ImageLoadingResult {
+    case still(CGImage)
+    case sequence(SequencePlaybackOperation)
+}
+
+struct SequencePlaybackOperation {
+    let firstFrame: CGImage
+    let frameIndices: [Int]
+    let frameInterval: TimeInterval
+    let loadFrame: @MainActor @Sendable (Int) async throws -> CGImage
+    let cancelFrameLoading: @Sendable () async -> Void
 }
 
 @MainActor
@@ -475,34 +356,16 @@ private final class ImageSequencePlayback {
     private var displayedPosition = 0
     private var desiredPosition = 0
 
-    func play<Loader: MediaImageLoading>(
-        firstFrame: CGImage,
-        frameLoader: ImageSequenceFrameLoader<Loader>,
-        frameIndices: [Int],
-        isAnimated: Bool,
-        frameInterval: TimeInterval,
-        view: AsyncImageView
-    ) {
+    func play(_ operation: SequencePlaybackOperation, view: AsyncImageView) {
         stop()
         self.view = view
-        self.frameInterval = frameInterval
-        self.frameIndices = frameIndices
+        self.frameInterval = operation.frameInterval
+        self.frameIndices = operation.frameIndices
         self.displayedPosition = 0
         self.desiredPosition = 0
-        self.loadFrame = { index in try await frameLoader.frame(at: index) }
-        self.cancelFrameLoading = { await frameLoader.cancel() }
-        view.setDisplayedImage(firstFrame)
-
-        guard isAnimated else {
-            let cancelFrameLoading = self.cancelFrameLoading
-            self.cancelFrameLoading = nil
-            loadFrame = nil
-            self.frameIndices = []
-            if let cancelFrameLoading {
-                Task { await cancelFrameLoading() }
-            }
-            return
-        }
+        self.loadFrame = operation.loadFrame
+        self.cancelFrameLoading = operation.cancelFrameLoading
+        view.setDisplayedImage(operation.firstFrame)
 
         let updateLink = UIUpdateLink(view: view) { [weak self] _, updateInfo in
             self?.updateLinkDidFire(updateInfo)
