@@ -82,6 +82,51 @@ private actor ImageLoadLifecycleProbe {
     }
 }
 
+private actor PlaceholderImageLoadGate {
+    private var startedContinuation: CheckedContinuation<Void, Never>?
+    private var resultContinuation: CheckedContinuation<Bool, Never>?
+    private var isStarted = false
+
+    func waitForLoadToStart() async {
+        guard !isStarted else { return }
+        await withCheckedContinuation { startedContinuation = $0 }
+    }
+
+    func waitForResult() async -> Bool {
+        isStarted = true
+        startedContinuation?.resume()
+        startedContinuation = nil
+        return await withCheckedContinuation { resultContinuation = $0 }
+    }
+
+    func finish(successfully: Bool) {
+        resultContinuation?.resume(returning: successfully)
+        resultContinuation = nil
+    }
+}
+
+private struct GatedImageLoader: MediaImageLoading {
+    let gate: PlaceholderImageLoadGate
+
+    @concurrent
+    func load<Request: MediaImageRequestProtocol>(
+        _ request: Request,
+        priority: TaskPriority
+    ) async throws -> MediaImage {
+        guard await gate.waitForResult() else {
+            throw GatedImageLoaderError.failed
+        }
+
+        return try await decodeFixture(Data(base64Encoded:
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jZ1sAAAAASUVORK5CYII="
+        )!)
+    }
+}
+
+private enum GatedImageLoaderError: Error {
+    case failed
+}
+
 private struct CancellationTrackingImageLoader: MediaImageLoading {
     let probe: ImageLoadLifecycleProbe
 
@@ -409,6 +454,80 @@ private func findAsyncImageView(in view: UIView) -> AsyncImageView? {
     #expect(view.image != nil)
     #expect(await probe.loadCount == 2)
     #expect(await probe.cancellationCount == 1)
+}
+
+@Test @MainActor func uiKitAsyncImageViewShowsPlaceholderUntilImageLoads() async throws {
+    let placeholder = try await decodeFixture(Data(base64Encoded:
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jZ1sAAAAASUVORK5CYII="
+    )!)
+    let gate = PlaceholderImageLoadGate()
+    let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 80, height: 80))
+    let view = AsyncImageView(frame: window.bounds)
+    window.addSubview(view)
+
+    let completionTask = Task { @MainActor in
+        await withCheckedContinuation { (continuation: CheckedContinuation<Result<CGImage, any Error>, Never>) in
+            view.loadImage(
+                using: GatedImageLoader(gate: gate),
+                placeholder: { placeholder },
+                request: { _, _ in
+                    try MediaImageRequest(
+                        asset: DataMediaAsset(data: Data([0]), uniqueKey: "placeholder-success"),
+                        targetSize: CGSize(width: 80, height: 80)
+                    )
+                },
+                onCompletion: { continuation.resume(returning: $0) }
+            )
+        }
+    }
+
+    await gate.waitForLoadToStart()
+    for _ in 0..<100 where view.image !== placeholder {
+        await Task.yield()
+    }
+    #expect(view.image === placeholder)
+
+    await gate.finish(successfully: true)
+    let completion = await completionTask.value
+    #expect(try completion.get() !== placeholder)
+    #expect(view.image === (try completion.get()))
+}
+
+@Test @MainActor func uiKitAsyncImageViewKeepsPlaceholderWhenImageLoadFails() async throws {
+    let placeholder = try await decodeFixture(Data(base64Encoded:
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jZ1sAAAAASUVORK5CYII="
+    )!)
+    let gate = PlaceholderImageLoadGate()
+    let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 80, height: 80))
+    let view = AsyncImageView(frame: window.bounds)
+    window.addSubview(view)
+
+    let completionTask = Task { @MainActor in
+        await withCheckedContinuation { (continuation: CheckedContinuation<Result<CGImage, any Error>, Never>) in
+            view.loadImage(
+                using: GatedImageLoader(gate: gate),
+                placeholder: { placeholder },
+                request: { _, _ in
+                    try MediaImageRequest(
+                        asset: DataMediaAsset(data: Data([0]), uniqueKey: "placeholder-failure"),
+                        targetSize: CGSize(width: 80, height: 80)
+                    )
+                },
+                onCompletion: { continuation.resume(returning: $0) }
+            )
+        }
+    }
+
+    await gate.waitForLoadToStart()
+    for _ in 0..<100 where view.image !== placeholder {
+        await Task.yield()
+    }
+    #expect(view.image === placeholder)
+
+    await gate.finish(successfully: false)
+    let completion = await completionTask.value
+    #expect(throws: GatedImageLoaderError.self) { try completion.get() }
+    #expect(view.image === placeholder)
 }
 
 @Test @MainActor func uiKitAsyncImageViewKeepsSuccessfulRequestWhenReattached() async throws {
