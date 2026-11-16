@@ -97,11 +97,8 @@ public struct AsyncImage: UIViewRepresentable {
 
     private func update(_ view: Vulp_UIKit.AsyncImageView, coordinator: Coordinator) {
         coordinator.onCompletion = onCompletion
-        view.contentMode = contentMode == .fit ? .scaleAspectFit : .scaleAspectFill
-        switch sizingMode {
-        case .viewBounds: view.sizingMode = .viewBounds
-        case .explicitPixels: view.sizingMode = .explicitPixels
-        }
+        view.contentMode = UIView.ContentMode(contentMode)
+        view.sizingMode = ImageViewSizingMode(sizingMode)
 
         guard coordinator.url != url
                 || coordinator.levelOfIntegrity != levelOfIntegrity
@@ -128,6 +125,23 @@ public struct AsyncImage: UIViewRepresentable {
         fileprivate var levelOfIntegrity: Double?
         fileprivate var prefetchCount: Int?
         fileprivate var onCompletion: (@MainActor @Sendable (Result<CGImage, any Error>) -> Void)?
+    }
+}
+private extension UIView.ContentMode {
+    init(_ contentMode: SwiftUI.ContentMode) {
+        switch contentMode {
+        case .fit: self = .scaleAspectFit
+        case .fill: self = .scaleAspectFill
+        }
+    }
+}
+
+private extension ImageViewSizingMode {
+    init(_ sizingMode: AsyncImage.SizingMode) {
+        switch sizingMode {
+        case .viewBounds: self = .viewBounds
+        case .explicitPixels: self = .explicitPixels
+        }
     }
 }
 #endif
