@@ -14,12 +14,12 @@ public struct AsyncImage: UIViewRepresentable {
         case viewBounds
     }
 
-    public var placeholder: (@Sendable () async throws -> CGImage?)?
     public var url: URL
     public var contentMode: ContentMode
     public var sizingMode: SizingMode
     public var levelOfIntegrity: Double
     public var prefetchCount: Int
+    public var placeholder: (@Sendable () async throws -> CGImage?)?
     public var onCompletion: (@MainActor @Sendable (Result<CGImage, any Error>) -> Void)?
 
     public init(
@@ -31,12 +31,12 @@ public struct AsyncImage: UIViewRepresentable {
         placeholder: (@Sendable () async throws -> CGImage?)? = nil,
         onCompletion: (@MainActor @Sendable (Result<CGImage, any Error>) -> Void)? = nil
     ) {
-        self.placeholder = placeholder
         self.url = url
         self.contentMode = contentMode
         self.sizingMode = sizingMode
         self.levelOfIntegrity = levelOfIntegrity
         self.prefetchCount = prefetchCount
+        self.placeholder = placeholder
         self.onCompletion = onCompletion
     }
 

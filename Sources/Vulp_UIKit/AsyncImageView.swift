@@ -6,8 +6,6 @@ import UIKit
 @MainActor
 public final class AsyncImageView: UIView {
     private let sequencePlayback = ImageSequencePlayback()
-    private var placeholderTask: Task<Void, Never>?
-    private(set) var placeholderGeneration = UUID()
     private var displayedImage: CGImage?
     private var makeImageOperation: (@MainActor @Sendable (CGSize?, CGFloat) -> ImageLoadingOperation?)?
     private var currentCacheIdentifier: String?
@@ -15,6 +13,8 @@ public final class AsyncImageView: UIView {
     private var currentSourceIdentifier: String?
     private var lastRequestLayoutKey: RequestLayoutKey?
     private var imageLoadTask: Task<Void, Never>?
+    private var placeholderTask: Task<Void, Never>?
+    private(set) var placeholderGeneration = UUID()
     private var imageCompletionHandler: (@MainActor @Sendable (Result<CGImage, any Error>) -> Void)?
 
     /// Controls request-builder loads and intrinsic sizing; sequence loads use their explicit `targetSize` argument.
