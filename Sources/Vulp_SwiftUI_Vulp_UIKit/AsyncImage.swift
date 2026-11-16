@@ -38,12 +38,24 @@ public struct AsyncImage: View {
     }
 
     public var body: some View {
-        ImageViewRepresentable(configuration: self)
+        ImageViewRepresentable(
+            url: url,
+            contentMode: contentMode,
+            sizingMode: sizingMode,
+            levelOfIntegrity: levelOfIntegrity,
+            prefetchCount: prefetchCount,
+            onCompletion: onCompletion
+        )
     }
 }
 
 private struct ImageViewRepresentable: UIViewRepresentable {
-    var configuration: AsyncImage
+    var url: URL
+    var contentMode: ContentMode
+    var sizingMode: AsyncImage.SizingMode
+    var levelOfIntegrity: Double
+    var prefetchCount: Int
+    var onCompletion: (@MainActor @Sendable (Result<CGImage, any Error>) -> Void)?
 
     func makeCoordinator() -> Coordinator {
         Coordinator()
@@ -64,7 +76,7 @@ private struct ImageViewRepresentable: UIViewRepresentable {
         uiView: Vulp_UIKit.AsyncImageView,
         context: Context
     ) -> CGSize? {
-        switch configuration.sizingMode {
+        switch sizingMode {
         case .viewBounds:
             guard let width = proposal.width, width.isFinite,
                   let height = proposal.height, height.isFinite
@@ -104,27 +116,27 @@ private struct ImageViewRepresentable: UIViewRepresentable {
     }
 
     private func update(_ view: Vulp_UIKit.AsyncImageView, coordinator: Coordinator) {
-        coordinator.onCompletion = configuration.onCompletion
-        view.contentMode = configuration.contentMode == .fit ? .scaleAspectFit : .scaleAspectFill
-        switch configuration.sizingMode {
+        coordinator.onCompletion = onCompletion
+        view.contentMode = contentMode == .fit ? .scaleAspectFit : .scaleAspectFill
+        switch sizingMode {
         case .viewBounds: view.sizingMode = .viewBounds
         case .explicitPixels: view.sizingMode = .explicitPixels
         }
 
-        guard coordinator.url != configuration.url
-                || coordinator.levelOfIntegrity != configuration.levelOfIntegrity
-                || coordinator.prefetchCount != configuration.prefetchCount
+        guard coordinator.url != url
+                || coordinator.levelOfIntegrity != levelOfIntegrity
+                || coordinator.prefetchCount != prefetchCount
         else {
             return
         }
 
-        coordinator.url = configuration.url
-        coordinator.levelOfIntegrity = configuration.levelOfIntegrity
-        coordinator.prefetchCount = configuration.prefetchCount
+        coordinator.url = url
+        coordinator.levelOfIntegrity = levelOfIntegrity
+        coordinator.prefetchCount = prefetchCount
         view.loadImage(
-            url: configuration.url,
-            levelOfIntegrity: configuration.levelOfIntegrity,
-            prefetchCount: configuration.prefetchCount
+            url: url,
+            levelOfIntegrity: levelOfIntegrity,
+            prefetchCount: prefetchCount
         ) { [weak coordinator] result in
             coordinator?.onCompletion?(result)
         }
