@@ -106,6 +106,8 @@ struct RemotePhoto: View {
 
 `VulpUI.AsyncImageTimelineView(url:)` sizes the request from its displayed bounds and environment display scale. To customize the image or placeholder, pass `content` and `placeholder` closures; the `content` closure receives a SwiftUI `Image`, so apply `.resizable()`, `.scaledToFit()`, or other image modifiers there. It accepts an optional failure callback and plays animated sources incrementally. For custom loaders or request options, use one of the request-based initializers.
 
+For UIKit-backed presentation in SwiftUI, import `Vulp_SwiftUI_Vulp_UIKit` and use `AsyncImage(url:contentMode:sizingMode:)`. Its public API uses SwiftUI `ContentMode` (`.fit` by default, or `.fill`) and `AsyncImage.SizingMode` (`.viewBounds` or `.explicitPixels`). It conforms directly to `UIViewRepresentable`; configuration uses SwiftUI-facing types.
+
 The processor downsamples `CGImage` values to the request's bucketed pixel size while preserving their aspect ratio. Choose presentation behavior in the UI: set `AsyncImageView.contentMode` in UIKit, or use `.scaledToFit()` / `.scaledToFill()` in SwiftUI. Since presentation mode is not part of the request or cache key, the same bucketed image can be reused for either mode. UIKit and AppKit image wrappers are created only at their presentation boundaries.
 
 ## Performance-conscious loading
