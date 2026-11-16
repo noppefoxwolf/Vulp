@@ -45,9 +45,9 @@ public extension AsyncImageView {
         let request = try MediaImageRequest(asset: asset, targetSize: targetSize)
         resetForNewImageSource()
         setInitialPlaceholder(placeholder)
-        let generation = placeholderGeneration
+        let generation = placeholderLoading.generation
         defer {
-            if placeholderGeneration == generation { cancelPlaceholder() }
+            if placeholderLoading.generation == generation { placeholderLoading.cancel() }
         }
         let content = try await Self.loadImageRequest(
             request,
@@ -56,7 +56,7 @@ public extension AsyncImageView {
             prefetchCount: prefetchCount
         )
         try Task.checkCancellation()
-        guard placeholderGeneration == generation else { throw CancellationError() }
+        guard placeholderLoading.generation == generation else { throw CancellationError() }
         displayLoadedContent(content, cacheIdentifier: request.cacheIdentifier, notifyCompletion: false)
     }
 }

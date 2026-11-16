@@ -6,6 +6,7 @@ import UIKit
 @MainActor
 public final class AsyncImageView: UIView {
     private let sequencePlayback = ImageSequencePlayback()
+    let placeholderLoading = ImagePlaceholderLoading()
     private var displayedImage: CGImage?
     private var makeImageOperation: (@MainActor @Sendable (CGSize?, CGFloat) -> ImageLoadingOperation?)?
     private var currentCacheIdentifier: String?
@@ -13,8 +14,6 @@ public final class AsyncImageView: UIView {
     private var currentSourceIdentifier: String?
     private var lastRequestLayoutKey: RequestLayoutKey?
     private var imageLoadTask: Task<Void, Never>?
-    private var placeholderTask: Task<Void, Never>?
-    private(set) var placeholderGeneration = UUID()
     private var imageCompletionHandler: (@MainActor @Sendable (Result<CGImage, any Error>) -> Void)?
 
     /// Controls request-builder loads and intrinsic sizing; sequence loads use their explicit `targetSize` argument.
@@ -87,7 +86,9 @@ public final class AsyncImageView: UIView {
             }
         }
         updateImageIfNeeded()
-        startPlaceholder(placeholder)
+        placeholderLoading.start(placeholder) { [weak self] image in
+            self?.setDisplayedImage(image)
+        }
     }
 
     /// Stops sequence playback while keeping the currently displayed frame.
@@ -97,7 +98,7 @@ public final class AsyncImageView: UIView {
 
     isolated deinit {
         imageLoadTask?.cancel()
-        placeholderTask?.cancel()
+        placeholderLoading.cancel()
         sequencePlayback.stop()
     }
 
@@ -146,7 +147,7 @@ public final class AsyncImageView: UIView {
     }
 
     func resetForNewImageSource() {
-        cancelPlaceholder()
+        placeholderLoading.cancel()
         cancelImageLoadTask()
         makeImageOperation = nil
         currentCacheIdentifier = nil
@@ -158,36 +159,9 @@ public final class AsyncImageView: UIView {
 
     func setInitialPlaceholder(_ placeholder: (@Sendable () async throws -> CGImage?)?) {
         setDisplayedImage(nil)
-        startPlaceholder(placeholder)
-    }
-
-    func cancelPlaceholder() {
-        placeholderGeneration = UUID()
-        placeholderTask?.cancel()
-        placeholderTask = nil
-    }
-
-    /// Generates a placeholder concurrently. Failure leaves the current presentation unchanged.
-    private func startPlaceholder(_ placeholder: (@Sendable () async throws -> CGImage?)?) {
-        guard let placeholder else { return }
-        let generation = placeholderGeneration
-        placeholderTask = Task { [weak self] in
-            do {
-                let image = try await Self.generatePlaceholder(placeholder)
-                try Task.checkCancellation()
-                guard let self, self.placeholderGeneration == generation else { return }
-                self.setDisplayedImage(image)
-            } catch {
-                // Placeholder failure must not fail the image request.
-            }
+        placeholderLoading.start(placeholder) { [weak self] image in
+            self?.setDisplayedImage(image)
         }
-    }
-
-    @concurrent
-    private static func generatePlaceholder(
-        _ placeholder: @Sendable () async throws -> CGImage?
-    ) async throws -> CGImage? {
-        try await placeholder()
     }
 
     private func cancelImageLoadTask() {
@@ -195,7 +169,7 @@ public final class AsyncImageView: UIView {
         imageLoadTask = nil
     }
 
-    fileprivate func setDisplayedImage(_ image: CGImage?) {
+    func setDisplayedImage(_ image: CGImage?) {
         let previousIntrinsicSize = intrinsicContentSize
         let contentsChanged = displayedImage !== image
         displayedImage = image
@@ -216,7 +190,7 @@ public final class AsyncImageView: UIView {
         cacheIdentifier: String,
         notifyCompletion: Bool = true
     ) {
-        cancelPlaceholder()
+        placeholderLoading.cancel()
         switch content {
         case .still(let image):
             loadedCacheIdentifier = cacheIdentifier
@@ -267,7 +241,7 @@ public final class AsyncImageView: UIView {
         lastRequestLayoutKey = layoutKey
         if currentSourceIdentifier != operation.sourceIdentifier {
             if currentSourceIdentifier != nil {
-                cancelPlaceholder()
+                placeholderLoading.cancel()
                 setDisplayedImage(nil)
             }
             currentSourceIdentifier = operation.sourceIdentifier
@@ -397,86 +371,4 @@ struct SequencePlaybackOperation {
     let cancelFrameLoading: @Sendable () async -> Void
 }
 
-@MainActor
-private final class ImageSequencePlayback {
-    private weak var view: AsyncImageView?
-    private var updateLink: UIUpdateLink?
-    private var frameLoadingTask: Task<Void, Never>?
-    private var loadFrame: (@MainActor @Sendable (Int) async throws -> CGImage)?
-    private var cancelFrameLoading: (@Sendable () async -> Void)?
-    private var frameIndices: [Int] = []
-    private var frameInterval: TimeInterval = ImageSequenceFrameRate.fps10.frameDuration
-    private var startTimestamp: CFTimeInterval?
-    private var displayedPosition = 0
-    private var desiredPosition = 0
-
-    func play(_ operation: SequencePlaybackOperation, view: AsyncImageView) {
-        stop()
-        self.view = view
-        self.frameInterval = operation.frameInterval
-        self.frameIndices = operation.frameIndices
-        self.displayedPosition = 0
-        self.desiredPosition = 0
-        self.loadFrame = operation.loadFrame
-        self.cancelFrameLoading = operation.cancelFrameLoading
-        view.setDisplayedImage(operation.firstFrame)
-
-        let updateLink = UIUpdateLink(view: view) { [weak self] _, updateInfo in
-            self?.updateLinkDidFire(updateInfo)
-        }
-        updateLink.requiresContinuousUpdates = true
-        updateLink.isEnabled = true
-        self.updateLink = updateLink
-    }
-
-    func stop() {
-        updateLink?.isEnabled = false
-        updateLink = nil
-        frameLoadingTask?.cancel()
-        frameLoadingTask = nil
-        let cancelFrameLoading = self.cancelFrameLoading
-        self.cancelFrameLoading = nil
-        loadFrame = nil
-        frameIndices = []
-        startTimestamp = nil
-        view = nil
-        if let cancelFrameLoading {
-            Task { await cancelFrameLoading() }
-        }
-    }
-
-    private func updateLinkDidFire(_ updateInfo: UIUpdateInfo) {
-        guard !frameIndices.isEmpty else { return }
-        guard let startTimestamp else {
-            self.startTimestamp = updateInfo.modelTime
-            return
-        }
-
-        let elapsed = max(0, updateInfo.modelTime - startTimestamp)
-        let position = Int(elapsed / frameInterval) % frameIndices.count
-        desiredPosition = position
-        guard position != displayedPosition,
-              frameLoadingTask == nil,
-              let loadFrame
-        else {
-            return
-        }
-
-        let index = frameIndices[position]
-        frameLoadingTask = Task { @MainActor [weak self] in
-            defer { self?.frameLoadingTask = nil }
-            do {
-                let image = try await loadFrame(index)
-                try Task.checkCancellation()
-                guard let self, self.desiredPosition == position else { return }
-                self.view?.setDisplayedImage(image)
-                self.displayedPosition = position
-            } catch is CancellationError {
-                return
-            } catch {
-                self?.stop()
-            }
-        }
-    }
-}
 #endif
