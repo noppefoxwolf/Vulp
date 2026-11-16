@@ -1,6 +1,6 @@
 # 0025. Hide UIKit implementation behind the SwiftUI view
 
-- Status: Accepted
+- Status: Accepted (superseded in part by [ADR 0026](0026-expose-swiftui-representable-conformance.md))
 - Date: 2026-11-17
 - Supersedes in part: [ADR 0021](0021-add-swiftui-wrapper-for-uikit-view.md)
 

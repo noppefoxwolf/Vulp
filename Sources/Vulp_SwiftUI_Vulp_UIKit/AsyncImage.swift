@@ -1,13 +1,13 @@
 #if canImport(UIKit) && canImport(SwiftUI)
 import SwiftUI
 import UIKit
-internal import Vulp_UIKit
+public import Vulp_UIKit
 
 /// A SwiftUI wrapper around Vulp's layer-backed UIKit image view.
 ///
 /// The wrapped view sizes requests from its laid-out bounds by default and plays
 /// animated image sequences using UIKit's display-synchronized playback.
-public struct AsyncImage: View {
+public struct AsyncImage: UIViewRepresentable {
     /// Selects how the image request obtains its size.
     public enum SizingMode: String, Sendable {
         case explicitPixels
@@ -37,41 +37,21 @@ public struct AsyncImage: View {
         self.onCompletion = onCompletion
     }
 
-    public var body: some View {
-        ImageViewRepresentable(
-            url: url,
-            contentMode: contentMode,
-            sizingMode: sizingMode,
-            levelOfIntegrity: levelOfIntegrity,
-            prefetchCount: prefetchCount,
-            onCompletion: onCompletion
-        )
-    }
-}
-
-private struct ImageViewRepresentable: UIViewRepresentable {
-    var url: URL
-    var contentMode: ContentMode
-    var sizingMode: AsyncImage.SizingMode
-    var levelOfIntegrity: Double
-    var prefetchCount: Int
-    var onCompletion: (@MainActor @Sendable (Result<CGImage, any Error>) -> Void)?
-
-    func makeCoordinator() -> Coordinator {
+    public func makeCoordinator() -> Coordinator {
         Coordinator()
     }
 
-    func makeUIView(context: Context) -> Vulp_UIKit.AsyncImageView {
+    public func makeUIView(context: Context) -> Vulp_UIKit.AsyncImageView {
         let view = AsyncImageView()
         update(view, coordinator: context.coordinator)
         return view
     }
 
-    func updateUIView(_ view: Vulp_UIKit.AsyncImageView, context: Context) {
+    public func updateUIView(_ view: Vulp_UIKit.AsyncImageView, context: Context) {
         update(view, coordinator: context.coordinator)
     }
 
-    func sizeThatFits(
+    public func sizeThatFits(
         _ proposal: ProposedViewSize,
         uiView: Vulp_UIKit.AsyncImageView,
         context: Context
@@ -143,7 +123,7 @@ private struct ImageViewRepresentable: UIViewRepresentable {
     }
 
     @MainActor
-    final class Coordinator {
+    public final class Coordinator {
         fileprivate var url: URL?
         fileprivate var levelOfIntegrity: Double?
         fileprivate var prefetchCount: Int?

@@ -293,6 +293,8 @@ import UIKit
             contentMode: mode,
             sizingMode: sizingMode
         )
+        func requireRepresentable<Value: UIViewRepresentable>(_ value: Value) {}
+        requireRepresentable(view)
         let host = UIHostingController(rootView: view.frame(width: 80, height: 60))
         let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 80, height: 60))
         host.view.frame = window.bounds
