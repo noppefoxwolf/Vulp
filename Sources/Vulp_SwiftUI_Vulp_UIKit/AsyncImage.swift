@@ -37,15 +37,6 @@ public struct AsyncImage: UIViewRepresentable {
         self.onCompletion = onCompletion
     }
 
-    @MainActor
-    public final class Coordinator {
-        fileprivate weak var imageView: Vulp_UIKit.AsyncImageView?
-        fileprivate var url: URL?
-        fileprivate var levelOfIntegrity: Double?
-        fileprivate var prefetchCount: Int?
-        fileprivate var onCompletion: (@MainActor @Sendable (Result<CGImage, any Error>) -> Void)?
-    }
-
     public func makeCoordinator() -> Coordinator {
         Coordinator()
     }
@@ -133,6 +124,15 @@ public struct AsyncImage: UIViewRepresentable {
         ) { [weak coordinator] result in
             coordinator?.onCompletion?(result)
         }
+    }
+
+    @MainActor
+    public final class Coordinator {
+        fileprivate weak var imageView: Vulp_UIKit.AsyncImageView?
+        fileprivate var url: URL?
+        fileprivate var levelOfIntegrity: Double?
+        fileprivate var prefetchCount: Int?
+        fileprivate var onCompletion: (@MainActor @Sendable (Result<CGImage, any Error>) -> Void)?
     }
 }
 
