@@ -8,6 +8,7 @@ public extension AsyncImageView {
         url: URL,
         levelOfIntegrity: Double = 1,
         prefetchCount: Int = 3,
+        placeholder: (@Sendable () async throws -> CGImage?)? = nil,
         onCompletion: (@MainActor @Sendable (Result<CGImage, any Error>) -> Void)? = nil
     ) {
         let asset = RemoteMediaAsset(url: url)
@@ -15,6 +16,7 @@ public extension AsyncImageView {
             using: MediaImageLoader.default,
             levelOfIntegrity: levelOfIntegrity,
             prefetchCount: prefetchCount,
+            placeholder: placeholder,
             request: { [weak self] targetSize, scale in
                 guard let self else { throw CancellationError() }
                 let pointSize = targetSize ?? CGSize(
@@ -37,10 +39,16 @@ public extension AsyncImageView {
         using loader: Loader = MediaImageLoader.default,
         targetSize: CGSize,
         levelOfIntegrity: Double = 1,
-        prefetchCount: Int = 3
+        prefetchCount: Int = 3,
+        placeholder: (@Sendable () async throws -> CGImage?)? = nil
     ) async throws {
         let request = try MediaImageRequest(asset: asset, targetSize: targetSize)
         resetForNewImageSource()
+        setInitialPlaceholder(placeholder)
+        let generation = placeholderGeneration
+        defer {
+            if placeholderGeneration == generation { cancelPlaceholder() }
+        }
         let content = try await Self.loadImageRequest(
             request,
             using: loader,
@@ -48,6 +56,7 @@ public extension AsyncImageView {
             prefetchCount: prefetchCount
         )
         try Task.checkCancellation()
+        guard placeholderGeneration == generation else { throw CancellationError() }
         displayLoadedContent(content, cacheIdentifier: request.cacheIdentifier, notifyCompletion: false)
     }
 }

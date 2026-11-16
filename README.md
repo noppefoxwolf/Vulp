@@ -70,6 +70,27 @@ imageView.loadImage(url: url)
 
 Call it after the view has its final bounds. The view owns and cancels its loading task when a new image is requested or its image is replaced. For full control over request size, caching, and the loader, use the request-builder overload. `MediaImageLoader.default` is preconfigured with URLSession, ImageIO, AVFoundation, resizing, and an in-memory cache.
 
+### Asynchronous image placeholders
+
+UIKit `AsyncImageView.loadImage` and the SwiftUI `Vulp_SwiftUI_Vulp_UIKit.AsyncImage`
+wrapper accept a `placeholder` closure returning `CGImage?` asynchronously. For example,
+using your app's BlurHash renderer:
+
+```swift
+imageView.loadImage(
+    url: url,
+    placeholder: { try await renderBlurHash(blurHash) }
+)
+```
+
+The closure runs away from the UI actor, alongside the image load. It can also return
+an existing image with `{ placeholderImage }`. A loaded image always takes precedence;
+changing the source or assigning `image` cancels pending placeholder work. Placeholder
+errors are ignored, and the placeholder remains visible if the image load fails.
+Vulp does not include a BlurHash decoder; supply your own renderer returning `CGImage`.
+The SwiftUI wrapper starts a new load when its URL or loading options change; keep the
+placeholder associated with that URL.
+
 ### SwiftUI
 
 ```swift

@@ -6,6 +6,8 @@ import UIKit
 @MainActor
 public final class AsyncImageView: UIView {
     private let sequencePlayback = ImageSequencePlayback()
+    private var placeholderTask: Task<Void, Never>?
+    private(set) var placeholderGeneration = UUID()
     private var displayedImage: CGImage?
     private var makeImageOperation: (@MainActor @Sendable (CGSize?, CGFloat) -> ImageLoadingOperation?)?
     private var currentCacheIdentifier: String?
@@ -51,17 +53,19 @@ public final class AsyncImageView: UIView {
     }
 
     /// Loads a request at this view's point bounds and display scale, playing multiple frames when supported.
+    ///
+    /// The optional placeholder is generated concurrently with the image load, away from the UI actor.
+    /// Errors are ignored, and late results cannot replace a loaded image.
     public func loadImage<Request: MediaImageRequestProtocol, Loader: MediaImageLoading>(
         using loader: Loader = MediaImageLoader.default,
         levelOfIntegrity: Double = 1,
         prefetchCount: Int = 3,
+        placeholder: (@Sendable () async throws -> CGImage?)? = nil,
         request: @escaping @MainActor @Sendable (CGSize?, CGFloat) throws -> Request,
         onCompletion: (@MainActor @Sendable (Result<CGImage, any Error>) -> Void)? = nil
     ) {
-        cancelImageLoadTask()
-        sequencePlayback.stop()
-        currentCacheIdentifier = nil
-        lastRequestLayoutKey = nil
+        resetForNewImageSource()
+        setDisplayedImage(nil)
         imageCompletionHandler = onCompletion
         makeImageOperation = { targetSize, scale in
             do {
@@ -83,6 +87,7 @@ public final class AsyncImageView: UIView {
             }
         }
         updateImageIfNeeded()
+        startPlaceholder(placeholder)
     }
 
     /// Stops sequence playback while keeping the currently displayed frame.
@@ -92,6 +97,7 @@ public final class AsyncImageView: UIView {
 
     isolated deinit {
         imageLoadTask?.cancel()
+        placeholderTask?.cancel()
         sequencePlayback.stop()
     }
 
@@ -140,6 +146,7 @@ public final class AsyncImageView: UIView {
     }
 
     func resetForNewImageSource() {
+        cancelPlaceholder()
         cancelImageLoadTask()
         makeImageOperation = nil
         currentCacheIdentifier = nil
@@ -147,6 +154,40 @@ public final class AsyncImageView: UIView {
         currentSourceIdentifier = nil
         lastRequestLayoutKey = nil
         sequencePlayback.stop()
+    }
+
+    func setInitialPlaceholder(_ placeholder: (@Sendable () async throws -> CGImage?)?) {
+        setDisplayedImage(nil)
+        startPlaceholder(placeholder)
+    }
+
+    func cancelPlaceholder() {
+        placeholderGeneration = UUID()
+        placeholderTask?.cancel()
+        placeholderTask = nil
+    }
+
+    /// Generates a placeholder concurrently. Failure leaves the current presentation unchanged.
+    private func startPlaceholder(_ placeholder: (@Sendable () async throws -> CGImage?)?) {
+        guard let placeholder else { return }
+        let generation = placeholderGeneration
+        placeholderTask = Task { [weak self] in
+            do {
+                let image = try await Self.generatePlaceholder(placeholder)
+                try Task.checkCancellation()
+                guard let self, self.placeholderGeneration == generation else { return }
+                self.setDisplayedImage(image)
+            } catch {
+                // Placeholder failure must not fail the image request.
+            }
+        }
+    }
+
+    @concurrent
+    private static func generatePlaceholder(
+        _ placeholder: @Sendable () async throws -> CGImage?
+    ) async throws -> CGImage? {
+        try await placeholder()
     }
 
     private func cancelImageLoadTask() {
@@ -175,6 +216,7 @@ public final class AsyncImageView: UIView {
         cacheIdentifier: String,
         notifyCompletion: Bool = true
     ) {
+        cancelPlaceholder()
         switch content {
         case .still(let image):
             loadedCacheIdentifier = cacheIdentifier
@@ -224,10 +266,13 @@ public final class AsyncImageView: UIView {
         guard let operation = makeImageOperation(targetSize, scale) else { return }
         lastRequestLayoutKey = layoutKey
         if currentSourceIdentifier != operation.sourceIdentifier {
+            if currentSourceIdentifier != nil {
+                cancelPlaceholder()
+                setDisplayedImage(nil)
+            }
             currentSourceIdentifier = operation.sourceIdentifier
             currentCacheIdentifier = nil
             loadedCacheIdentifier = nil
-            setDisplayedImage(nil)
         }
         guard operation.cacheIdentifier != currentCacheIdentifier else { return }
 

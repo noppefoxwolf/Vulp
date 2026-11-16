@@ -3,6 +3,8 @@ import Vulp
 import VulpUI
 import Testing
 
+private func isMainThread() -> Bool { Thread.isMainThread }
+
 private enum PlatformImageFixture {
     static func image() async throws -> MediaImage {
         let data = Data(base64Encoded:
@@ -60,5 +62,42 @@ import UIKit
     #expect(view.image === image)
     #expect(view.subviews.isEmpty)
     #expect(view.contentMode == .scaleAspectFit)
+}
+@MainActor
+@Test func uiKitAsyncPlaceholderDisplaysWithoutWaitingForLayout() async throws {
+    let image = try await PlatformImageFixture.image()
+    let view = AsyncImageView()
+    view.loadImage(url: URL(string: "https://example.com/image.png")!, placeholder: {
+        #expect(!isMainThread())
+        return image
+    })
+    try await Task.sleep(for: .milliseconds(50))
+    #expect(view.image === image)
+}
+
+@MainActor
+@Test func uiKitAssignedImageSupersedesPendingPlaceholder() async throws {
+    let image = try await PlatformImageFixture.image()
+    let view = AsyncImageView()
+    view.loadImage(url: URL(string: "https://example.com/image.png")!, placeholder: {
+        try? await Task.sleep(for: .milliseconds(20))
+        return image
+    })
+    view.image = nil
+    try await Task.sleep(for: .milliseconds(50))
+    #expect(view.image == nil)
+}
+@MainActor
+@Test func uiKitLoadedImageSupersedesPendingPlaceholder() async throws {
+    let image = try await PlatformImageFixture.image()
+    let placeholder = try await PlatformImageFixture.image()
+    let view = AsyncImageView()
+    view.loadImage(url: URL(string: "https://example.com/image.png")!, placeholder: {
+        try? await Task.sleep(for: .milliseconds(20))
+        return placeholder
+    })
+    view.displayLoadedContent(.still(image), cacheIdentifier: "loaded")
+    try await Task.sleep(for: .milliseconds(50))
+    #expect(view.image === image)
 }
 #endif

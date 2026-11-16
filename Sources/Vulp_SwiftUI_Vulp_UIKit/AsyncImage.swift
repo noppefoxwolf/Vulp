@@ -8,6 +8,7 @@ import UIKit
 /// The wrapped view sizes requests from its laid-out bounds by default and plays
 /// animated image sequences using UIKit's display-synchronized playback.
 public struct AsyncImage: UIViewRepresentable {
+    public var placeholder: (@Sendable () async throws -> CGImage?)?
     public var url: URL
     public var contentMode: UIView.ContentMode
     public var sizingMode: ImageViewSizingMode
@@ -21,8 +22,10 @@ public struct AsyncImage: UIViewRepresentable {
         sizingMode: ImageViewSizingMode = .viewBounds,
         levelOfIntegrity: Double = 1,
         prefetchCount: Int = 3,
+        placeholder: (@Sendable () async throws -> CGImage?)? = nil,
         onCompletion: (@MainActor @Sendable (Result<CGImage, any Error>) -> Void)? = nil
     ) {
+        self.placeholder = placeholder
         self.url = url
         self.contentMode = contentMode
         self.sizingMode = sizingMode
@@ -107,7 +110,8 @@ public struct AsyncImage: UIViewRepresentable {
         view.loadImage(
             url: url,
             levelOfIntegrity: levelOfIntegrity,
-            prefetchCount: prefetchCount
+            prefetchCount: prefetchCount,
+            placeholder: placeholder
         ) { [weak coordinator] result in
             coordinator?.onCompletion?(result)
         }
