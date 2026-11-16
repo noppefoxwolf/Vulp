@@ -4,31 +4,49 @@ import UIKit
 /// Owns placeholder generation and rejects results from superseded loads.
 @MainActor
 final class ImagePlaceholderLoading {
-    private var task: Task<Void, Never>?
-    private(set) var generation = UUID()
+    private(set) var task: Task<Void, Never>?
+    private var generation = UUID()
+    private var placeholder: (@Sendable () async throws -> CGImage?)?
+    private var onImage: (@MainActor (CGImage?) -> Void)?
 
-    func start(
+    func configure(
         _ placeholder: (@Sendable () async throws -> CGImage?)?,
         onImage: @escaping @MainActor (CGImage?) -> Void
     ) {
-        guard let placeholder else { return }
+        cancel()
+        self.placeholder = placeholder
+        self.onImage = onImage
+    }
+
+    func resume() {
+        guard task == nil, let placeholder, let onImage else { return }
         let generation = generation
         task = Task { [weak self] in
             do {
                 let image = try await Self.generate(placeholder)
                 try Task.checkCancellation()
                 guard let self, self.generation == generation else { return }
+                self.cancel()
                 onImage(image)
             } catch {
-                // Placeholder failure must not fail the image request.
+                guard let self, self.generation == generation else { return }
+                // A failed placeholder is not retried on every layout pass.
+                self.cancel()
             }
         }
     }
 
-    func cancel() {
+    /// Keeps the provider so an interrupted generation can resume on reattachment.
+    func suspend() {
         generation = UUID()
         task?.cancel()
         task = nil
+    }
+
+    func cancel() {
+        suspend()
+        placeholder = nil
+        onImage = nil
     }
 
     isolated deinit {

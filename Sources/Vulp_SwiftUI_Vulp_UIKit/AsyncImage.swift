@@ -19,6 +19,8 @@ public struct AsyncImage: UIViewRepresentable {
     public var sizingMode: SizingMode
     public var levelOfIntegrity: Double
     public var prefetchCount: Int
+    /// Change this ID to replace the placeholder provider while keeping the same URL.
+    public var placeholderID: String?
     public var placeholder: (@Sendable () async throws -> CGImage?)?
     public var onCompletion: (@MainActor @Sendable (Result<CGImage, any Error>) -> Void)?
 
@@ -28,6 +30,7 @@ public struct AsyncImage: UIViewRepresentable {
         sizingMode: SizingMode = .viewBounds,
         levelOfIntegrity: Double = 1,
         prefetchCount: Int = 3,
+        placeholderID: String? = nil,
         placeholder: (@Sendable () async throws -> CGImage?)? = nil,
         onCompletion: (@MainActor @Sendable (Result<CGImage, any Error>) -> Void)? = nil
     ) {
@@ -36,6 +39,7 @@ public struct AsyncImage: UIViewRepresentable {
         self.sizingMode = sizingMode
         self.levelOfIntegrity = levelOfIntegrity
         self.prefetchCount = prefetchCount
+        self.placeholderID = placeholderID
         self.placeholder = placeholder
         self.onCompletion = onCompletion
     }
@@ -107,9 +111,14 @@ public struct AsyncImage: UIViewRepresentable {
                 || coordinator.levelOfIntegrity != levelOfIntegrity
                 || coordinator.prefetchCount != prefetchCount
         else {
+            if coordinator.placeholderID != placeholderID {
+                coordinator.placeholderID = placeholderID
+                view.setPlaceholder(placeholder)
+            }
             return
         }
 
+        coordinator.placeholderID = placeholderID
         coordinator.url = url
         coordinator.levelOfIntegrity = levelOfIntegrity
         coordinator.prefetchCount = prefetchCount
@@ -125,6 +134,7 @@ public struct AsyncImage: UIViewRepresentable {
 
     @MainActor
     public final class Coordinator {
+        fileprivate var placeholderID: String?
         fileprivate var url: URL?
         fileprivate var levelOfIntegrity: Double?
         fileprivate var prefetchCount: Int?
