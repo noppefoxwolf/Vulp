@@ -39,6 +39,7 @@ public struct AsyncImage: UIViewRepresentable {
 
     @MainActor
     public final class Coordinator {
+        fileprivate weak var imageView: Vulp_UIKit.AsyncImageView?
         fileprivate var url: URL?
         fileprivate var levelOfIntegrity: Double?
         fileprivate var prefetchCount: Int?
@@ -51,17 +52,18 @@ public struct AsyncImage: UIViewRepresentable {
 
     public func makeUIView(context: Context) -> UIView {
         let view = Vulp_UIKit.AsyncImageView()
-        update(view, coordinator: context.coordinator)
+        context.coordinator.imageView = view
+        update(coordinator: context.coordinator)
         return view
     }
 
-    public func updateUIView(_ view: UIView, context: Context) {
-        update(view, coordinator: context.coordinator)
+    public func updateUIView(_: UIView, context: Context) {
+        update(coordinator: context.coordinator)
     }
 
     public func sizeThatFits(
         _ proposal: ProposedViewSize,
-        uiView: UIView,
+        uiView _: UIView,
         context: Context
     ) -> CGSize? {
         switch sizingMode {
@@ -73,7 +75,7 @@ public struct AsyncImage: UIViewRepresentable {
             }
             return CGSize(width: width, height: height)
         case .explicitPixels:
-            guard let imageView = uiView as? Vulp_UIKit.AsyncImageView else {
+            guard let imageView = context.coordinator.imageView else {
                 return nil
             }
             let intrinsicSize = imageView.intrinsicContentSize
@@ -106,8 +108,8 @@ public struct AsyncImage: UIViewRepresentable {
         }
     }
 
-    private func update(_ view: UIView, coordinator: Coordinator) {
-        guard let imageView = view as? Vulp_UIKit.AsyncImageView else {
+    private func update(coordinator: Coordinator) {
+        guard let imageView = coordinator.imageView else {
             return
         }
         coordinator.onCompletion = onCompletion
