@@ -1,24 +1,30 @@
 #if canImport(UIKit) && canImport(SwiftUI)
 import SwiftUI
 import UIKit
-@_exported import Vulp_UIKit
+public import Vulp_UIKit
 
 /// A SwiftUI wrapper around Vulp's layer-backed UIKit image view.
 ///
 /// The wrapped view sizes requests from its laid-out bounds by default and plays
 /// animated image sequences using UIKit's display-synchronized playback.
 public struct AsyncImage: UIViewRepresentable {
+    /// Selects how the image request obtains its size.
+    public enum SizingMode: String, Sendable {
+        case explicitPixels
+        case viewBounds
+    }
+
     public var url: URL
-    public var contentMode: UIView.ContentMode
-    public var sizingMode: ImageViewSizingMode
+    public var contentMode: ContentMode
+    public var sizingMode: SizingMode
     public var levelOfIntegrity: Double
     public var prefetchCount: Int
     public var onCompletion: (@MainActor @Sendable (Result<CGImage, any Error>) -> Void)?
 
     public init(
         url: URL,
-        contentMode: UIView.ContentMode = .scaleAspectFit,
-        sizingMode: ImageViewSizingMode = .viewBounds,
+        contentMode: ContentMode = .fit,
+        sizingMode: SizingMode = .viewBounds,
         levelOfIntegrity: Double = 1,
         prefetchCount: Int = 3,
         onCompletion: (@MainActor @Sendable (Result<CGImage, any Error>) -> Void)? = nil
@@ -91,8 +97,8 @@ public struct AsyncImage: UIViewRepresentable {
 
     private func update(_ view: Vulp_UIKit.AsyncImageView, coordinator: Coordinator) {
         coordinator.onCompletion = onCompletion
-        view.contentMode = contentMode
-        view.sizingMode = sizingMode
+        view.contentMode = UIView.ContentMode(contentMode)
+        view.sizingMode = ImageViewSizingMode(sizingMode)
 
         guard coordinator.url != url
                 || coordinator.levelOfIntegrity != levelOfIntegrity
@@ -119,6 +125,23 @@ public struct AsyncImage: UIViewRepresentable {
         fileprivate var levelOfIntegrity: Double?
         fileprivate var prefetchCount: Int?
         fileprivate var onCompletion: (@MainActor @Sendable (Result<CGImage, any Error>) -> Void)?
+    }
+}
+private extension UIView.ContentMode {
+    init(_ contentMode: SwiftUI.ContentMode) {
+        switch contentMode {
+        case .fit: self = .scaleAspectFit
+        case .fill: self = .scaleAspectFill
+        }
+    }
+}
+
+private extension ImageViewSizingMode {
+    init(_ sizingMode: AsyncImage.SizingMode) {
+        switch sizingMode {
+        case .viewBounds: self = .viewBounds
+        case .explicitPixels: self = .explicitPixels
+        }
     }
 }
 #endif

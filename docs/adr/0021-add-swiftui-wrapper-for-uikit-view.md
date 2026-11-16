@@ -1,6 +1,6 @@
 # 0021. Add a SwiftUI wrapper for the UIKit image view
 
-- Status: Accepted
+- Status: Accepted (superseded in part by [ADR 0025](0025-hide-uikit-behind-swiftui-view.md))
 - Date: 2026-11-10
 
 ## Context

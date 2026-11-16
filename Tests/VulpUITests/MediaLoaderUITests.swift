@@ -285,6 +285,28 @@ private enum AnimatedGIFFixture {
 #if canImport(UIKit)
 import UIKit
 
+@Test @MainActor func swiftUIAsyncImageMapsSwiftUIConfigurationToUIKit() throws {
+    for mode in [SwiftUI.ContentMode.fit, .fill] {
+        let sizingMode: VulpUI.AsyncImage.SizingMode = .explicitPixels
+        let view = VulpUI.AsyncImage(
+            url: URL(string: "about:blank")!,
+            contentMode: mode,
+            sizingMode: sizingMode
+        )
+        func requireRepresentable<Value: UIViewRepresentable>(_ value: Value) {}
+        requireRepresentable(view)
+        let host = UIHostingController(rootView: view.frame(width: 80, height: 60))
+        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 80, height: 60))
+        host.view.frame = window.bounds
+        window.addSubview(host.view)
+        host.view.layoutIfNeeded()
+
+        let imageView = try #require(findAsyncImageView(in: host.view))
+        #expect(imageView.contentMode == (mode == .fit ? .scaleAspectFit : .scaleAspectFill))
+        #expect(imageView.sizingMode == .explicitPixels)
+    }
+}
+
 @Test @MainActor func swiftUIAsyncImageUsesProposedViewBounds() {
     let expectedSizes = [
         CGSize(width: 310, height: 175),
