@@ -8,6 +8,7 @@ public extension AsyncImageView {
         url: URL,
         levelOfIntegrity: Double = 1,
         prefetchCount: Int = 3,
+        placeholder: (@Sendable () async throws -> CGImage)? = nil,
         onCompletion: (@MainActor @Sendable (Result<CGImage, any Error>) -> Void)? = nil
     ) {
         let asset = RemoteMediaAsset(url: url)
@@ -15,6 +16,7 @@ public extension AsyncImageView {
             using: MediaImageLoader.default,
             levelOfIntegrity: levelOfIntegrity,
             prefetchCount: prefetchCount,
+            placeholder: placeholder,
             request: { [weak self] targetSize, scale in
                 guard let self else { throw CancellationError() }
                 let pointSize = targetSize ?? CGSize(

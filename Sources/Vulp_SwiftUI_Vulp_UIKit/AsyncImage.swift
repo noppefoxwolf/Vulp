@@ -15,7 +15,7 @@ public struct AsyncImage: UIViewRepresentable {
     public var prefetchCount: Int
     public var onCompletion: (@MainActor @Sendable (Result<CGImage, any Error>) -> Void)?
     public var onSetup: (@MainActor (Vulp_UIKit.AsyncImageView) -> Void)?
-    public var placeholder: (@MainActor @Sendable () async throws -> CGImage)?
+    public var placeholder: (@Sendable () async throws -> CGImage)?
 
     public init(
         url: URL,
@@ -25,7 +25,7 @@ public struct AsyncImage: UIViewRepresentable {
         prefetchCount: Int = 3,
         onCompletion: (@MainActor @Sendable (Result<CGImage, any Error>) -> Void)? = nil,
         onSetup: (@MainActor (Vulp_UIKit.AsyncImageView) -> Void)? = nil,
-        placeholder: (@MainActor @Sendable () async throws -> CGImage)? = nil
+        placeholder: (@Sendable () async throws -> CGImage)? = nil
     ) {
         self.url = url
         self.contentMode = contentMode
@@ -97,7 +97,6 @@ public struct AsyncImage: UIViewRepresentable {
 
     private func update(_ view: Vulp_UIKit.AsyncImageView, coordinator: Coordinator) {
         coordinator.onCompletion = onCompletion
-        coordinator.placeholder = placeholder
         view.contentMode = contentMode
         view.sizingMode = sizingMode
         if !coordinator.didSetupView {
@@ -115,13 +114,13 @@ public struct AsyncImage: UIViewRepresentable {
         coordinator.url = url
         coordinator.levelOfIntegrity = levelOfIntegrity
         coordinator.prefetchCount = prefetchCount
-        coordinator.loadPlaceholder(for: url, into: view)
         view.loadImage(
             url: url,
             levelOfIntegrity: levelOfIntegrity,
-            prefetchCount: prefetchCount
+            prefetchCount: prefetchCount,
+            placeholder: placeholder
         ) { [weak coordinator] result in
-            coordinator?.imageDidComplete(result)
+            coordinator?.onCompletion?(result)
         }
     }
 
@@ -131,45 +130,7 @@ public struct AsyncImage: UIViewRepresentable {
         fileprivate var levelOfIntegrity: Double?
         fileprivate var prefetchCount: Int?
         fileprivate var onCompletion: (@MainActor @Sendable (Result<CGImage, any Error>) -> Void)?
-        fileprivate var placeholder: (@MainActor @Sendable () async throws -> CGImage)?
         fileprivate var didSetupView = false
-        private var placeholderTask: Task<Void, Never>?
-        private var placeholderURL: URL?
-        private var didLoadImageSuccessfully = false
-
-        fileprivate func loadPlaceholder(for url: URL, into view: Vulp_UIKit.AsyncImageView) {
-            placeholderTask?.cancel()
-            placeholderURL = url
-            didLoadImageSuccessfully = false
-            view.showPlaceholder(nil)
-            guard let placeholder else { return }
-
-            placeholderTask = Task { @MainActor [weak self, weak view] in
-                do {
-                    let image = try await placeholder()
-                    try Task.checkCancellation()
-                    guard let self,
-                          let view,
-                          self.placeholderURL == url,
-                          !self.didLoadImageSuccessfully
-                    else {
-                        return
-                    }
-                    view.showPlaceholder(image)
-                } catch is CancellationError {
-                    return
-                } catch {
-                    // A failed placeholder should not prevent the source image from loading.
-                }
-            }
-        }
-
-        fileprivate func imageDidComplete(_ result: Result<CGImage, any Error>) {
-            if case .success = result {
-                didLoadImageSuccessfully = true
-            }
-            onCompletion?(result)
-        }
     }
 }
 #endif
