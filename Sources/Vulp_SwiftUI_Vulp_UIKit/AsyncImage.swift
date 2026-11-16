@@ -1,24 +1,30 @@
 #if canImport(UIKit) && canImport(SwiftUI)
 import SwiftUI
 import UIKit
-@_exported import Vulp_UIKit
+internal import Vulp_UIKit
 
 /// A SwiftUI wrapper around Vulp's layer-backed UIKit image view.
 ///
 /// The wrapped view sizes requests from its laid-out bounds by default and plays
 /// animated image sequences using UIKit's display-synchronized playback.
-public struct AsyncImage: UIViewRepresentable {
+public struct AsyncImage: View {
+    /// Selects how the image request obtains its size.
+    public enum SizingMode: String, Sendable {
+        case explicitPixels
+        case viewBounds
+    }
+
     public var url: URL
-    public var contentMode: UIView.ContentMode
-    public var sizingMode: ImageViewSizingMode
+    public var contentMode: ContentMode
+    public var sizingMode: SizingMode
     public var levelOfIntegrity: Double
     public var prefetchCount: Int
     public var onCompletion: (@MainActor @Sendable (Result<CGImage, any Error>) -> Void)?
 
     public init(
         url: URL,
-        contentMode: UIView.ContentMode = .scaleAspectFit,
-        sizingMode: ImageViewSizingMode = .viewBounds,
+        contentMode: ContentMode = .fit,
+        sizingMode: SizingMode = .viewBounds,
         levelOfIntegrity: Double = 1,
         prefetchCount: Int = 3,
         onCompletion: (@MainActor @Sendable (Result<CGImage, any Error>) -> Void)? = nil
@@ -31,26 +37,34 @@ public struct AsyncImage: UIViewRepresentable {
         self.onCompletion = onCompletion
     }
 
-    public func makeCoordinator() -> Coordinator {
+    public var body: some View {
+        ImageViewRepresentable(configuration: self)
+    }
+}
+
+private struct ImageViewRepresentable: UIViewRepresentable {
+    var configuration: AsyncImage
+
+    func makeCoordinator() -> Coordinator {
         Coordinator()
     }
 
-    public func makeUIView(context: Context) -> Vulp_UIKit.AsyncImageView {
+    func makeUIView(context: Context) -> Vulp_UIKit.AsyncImageView {
         let view = AsyncImageView()
         update(view, coordinator: context.coordinator)
         return view
     }
 
-    public func updateUIView(_ view: Vulp_UIKit.AsyncImageView, context: Context) {
+    func updateUIView(_ view: Vulp_UIKit.AsyncImageView, context: Context) {
         update(view, coordinator: context.coordinator)
     }
 
-    public func sizeThatFits(
+    func sizeThatFits(
         _ proposal: ProposedViewSize,
         uiView: Vulp_UIKit.AsyncImageView,
         context: Context
     ) -> CGSize? {
-        switch sizingMode {
+        switch configuration.sizingMode {
         case .viewBounds:
             guard let width = proposal.width, width.isFinite,
                   let height = proposal.height, height.isFinite
@@ -90,31 +104,34 @@ public struct AsyncImage: UIViewRepresentable {
     }
 
     private func update(_ view: Vulp_UIKit.AsyncImageView, coordinator: Coordinator) {
-        coordinator.onCompletion = onCompletion
-        view.contentMode = contentMode
-        view.sizingMode = sizingMode
+        coordinator.onCompletion = configuration.onCompletion
+        view.contentMode = configuration.contentMode == .fit ? .scaleAspectFit : .scaleAspectFill
+        switch configuration.sizingMode {
+        case .viewBounds: view.sizingMode = .viewBounds
+        case .explicitPixels: view.sizingMode = .explicitPixels
+        }
 
-        guard coordinator.url != url
-                || coordinator.levelOfIntegrity != levelOfIntegrity
-                || coordinator.prefetchCount != prefetchCount
+        guard coordinator.url != configuration.url
+                || coordinator.levelOfIntegrity != configuration.levelOfIntegrity
+                || coordinator.prefetchCount != configuration.prefetchCount
         else {
             return
         }
 
-        coordinator.url = url
-        coordinator.levelOfIntegrity = levelOfIntegrity
-        coordinator.prefetchCount = prefetchCount
+        coordinator.url = configuration.url
+        coordinator.levelOfIntegrity = configuration.levelOfIntegrity
+        coordinator.prefetchCount = configuration.prefetchCount
         view.loadImage(
-            url: url,
-            levelOfIntegrity: levelOfIntegrity,
-            prefetchCount: prefetchCount
+            url: configuration.url,
+            levelOfIntegrity: configuration.levelOfIntegrity,
+            prefetchCount: configuration.prefetchCount
         ) { [weak coordinator] result in
             coordinator?.onCompletion?(result)
         }
     }
 
     @MainActor
-    public final class Coordinator {
+    final class Coordinator {
         fileprivate var url: URL?
         fileprivate var levelOfIntegrity: Double?
         fileprivate var prefetchCount: Int?

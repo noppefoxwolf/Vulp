@@ -35,3 +35,4 @@ This directory stores decisions that affect Vulp's architecture and public API.
 - [0022. Keep sizing mode types in UI targets](0022-keep-sizing-mode-types-in-ui-targets.md)
 - [0023. Select decoders from local source files](0023-select-decoders-from-local-source-files.md)
 - [0024. Select sequence playback from loaded media data](0024-data-driven-sequence-loading.md)
+- [0025. Hide UIKit implementation behind the SwiftUI view](0025-hide-uikit-behind-swiftui-view.md)
