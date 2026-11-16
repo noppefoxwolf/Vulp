@@ -7,6 +7,7 @@ import UIKit
 public final class AsyncImageView: UIView {
     private let sequencePlayback = ImageSequencePlayback()
     private var displayedImage: CGImage?
+    private var placeholderImage: CGImage?
     private var makeImageOperation: (@MainActor @Sendable (CGSize?, CGFloat) -> ImageLoadingOperation?)?
     private var currentCacheIdentifier: String?
     private var loadedCacheIdentifier: String?
@@ -33,6 +34,13 @@ public final class AsyncImageView: UIView {
             resetForNewImageSource()
             setDisplayedImage(newValue)
         }
+    }
+
+    /// Displays a temporary image without cancelling the active image request.
+    public func showPlaceholder(_ image: CGImage?) {
+        placeholderImage = image
+        guard loadedCacheIdentifier == nil else { return }
+        setDisplayedImage(image)
     }
 
     public override var contentMode: UIView.ContentMode {
@@ -227,7 +235,7 @@ public final class AsyncImageView: UIView {
             currentSourceIdentifier = operation.sourceIdentifier
             currentCacheIdentifier = nil
             loadedCacheIdentifier = nil
-            setDisplayedImage(nil)
+            setDisplayedImage(placeholderImage)
         }
         guard operation.cacheIdentifier != currentCacheIdentifier else { return }
 
