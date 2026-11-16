@@ -53,18 +53,21 @@ public struct AsyncImage: UIViewRepresentable {
     public func makeUIView(context: Context) -> UIView {
         let view = Vulp_UIKit.AsyncImageView()
         context.coordinator.imageView = view
-        update(coordinator: context.coordinator)
+        update(view, coordinator: context.coordinator)
         return view
     }
 
     public func updateUIView(_: UIView, context: Context) {
-        update(coordinator: context.coordinator)
+        guard let imageView = context.coordinator.imageView else {
+            return
+        }
+        update(imageView, coordinator: context.coordinator)
     }
 
     public func sizeThatFits(
         _ proposal: ProposedViewSize,
-        uiView _: UIView,
-        context: Context
+        uiView: UIView,
+        context _: Context
     ) -> CGSize? {
         switch sizingMode {
         case .viewBounds:
@@ -75,10 +78,7 @@ public struct AsyncImage: UIViewRepresentable {
             }
             return CGSize(width: width, height: height)
         case .explicitPixels:
-            guard let imageView = context.coordinator.imageView else {
-                return nil
-            }
-            let intrinsicSize = imageView.intrinsicContentSize
+            let intrinsicSize = uiView.intrinsicContentSize
             guard intrinsicSize.width != UIView.noIntrinsicMetric,
                   intrinsicSize.height != UIView.noIntrinsicMetric,
                   intrinsicSize.width > 0,
@@ -108,10 +108,10 @@ public struct AsyncImage: UIViewRepresentable {
         }
     }
 
-    private func update(coordinator: Coordinator) {
-        guard let imageView = coordinator.imageView else {
-            return
-        }
+    private func update(
+        _ imageView: Vulp_UIKit.AsyncImageView,
+        coordinator: Coordinator
+    ) {
         coordinator.onCompletion = onCompletion
         imageView.contentMode = contentMode.uiKitContentMode
         imageView.sizingMode = sizingMode.uiKitSizingMode
