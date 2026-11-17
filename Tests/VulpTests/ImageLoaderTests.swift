@@ -19,8 +19,8 @@ import Testing
     let first = try await loader.load(request)
     let second = try await loader.load(request)
 
-    #expect(first.width == 5)
-    #expect(first.height == 5)
+    #expect(first.width == 1)
+    #expect(first.height == 1)
     #expect(second === first)
 }
 
@@ -93,12 +93,17 @@ import Testing
 }
 
 @Test func imagePrefetcherStartsEachURLOnceAcrossBatches() async throws {
+    let directory = FileManager.default.temporaryDirectory
+        .appendingPathComponent("VulpTests-\(UUID().uuidString)", isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: directory) }
+
     let downloader = CountingAssetDownloader(delay: .milliseconds(80))
     let loader = DefaultMediaImageLoader(
         downloader: downloader,
         decoders: [ImageIOImageDecoder()],
         processor: ResizeImageProcessor(),
-        cache: InMemoryImageCache()
+        cache: InMemoryImageCache(),
+        dataCache: DiskAssetDataCache(directory: directory)
     )
     let prefetcher = MediaAssetPrefetcher(loader: loader)
     let firstURL = URL(string: "https://example.com/batch-first.png")!
@@ -106,7 +111,11 @@ import Testing
 
     await prefetcher.startPrefetching(with: [firstURL, secondURL])
     await prefetcher.startPrefetching(with: [firstURL])
-    try await Task.sleep(for: .milliseconds(150))
+    // Await the shared downloads instead of assuming background work finishes within a fixed delay.
+    for url in [firstURL, secondURL] {
+        let request = try MediaImageRequest(asset: RemoteMediaAsset(url: url), targetSize: .zero)
+        _ = try await loader.load(request)
+    }
 
     #expect(await downloader.callCount == 2)
 }

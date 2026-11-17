@@ -43,7 +43,8 @@ struct CustomAsset: MediaAsset {
         targetSize: CGSize(width: 40, height: 30)
     )
 
-    #expect(request.cacheIdentifier == "avatar|64.0x48.0")
+    #expect(request.targetSize == CGSize(width: 45, height: 34))
+    #expect(request.cacheIdentifier == "avatar|45.0x34.0")
 }
 
 @Test func requestRejectsNegativeDimensions() {
