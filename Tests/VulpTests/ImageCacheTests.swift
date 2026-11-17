@@ -86,3 +86,40 @@ import Testing
 
     #expect(await layeredCache.image(forKey: "expired") == nil)
 }
+
+@Test func lruCacheEvictsByByteCostInAccessOrder() async throws {
+    let image = try await TestImageData.image()
+    let cost = image.bytesPerRow * image.height
+    let cache = LRUImageCache(countLimit: 10, totalCostLimit: cost * 2)
+    await cache.insert(image, forKey: "first")
+    await cache.insert(image, forKey: "second")
+    _ = await cache.image(forKey: "first")
+    await cache.insert(image, forKey: "third")
+    #expect(await cache.image(forKey: "first") === image)
+    #expect(await cache.image(forKey: "second") == nil)
+    #expect(await cache.image(forKey: "third") === image)
+}
+
+@Test func lruCacheReleasesCostWhenReplacingAndRemovingEntries() async throws {
+    let image = try await TestImageData.image()
+    let cost = image.bytesPerRow * image.height
+    let cache = LRUImageCache(totalCostLimit: cost * 2)
+    await cache.insert(image, forKey: "first")
+    await cache.insert(image, forKey: "first")
+    await cache.insert(image, forKey: "second")
+    #expect(await cache.image(forKey: "first") === image)
+    await cache.removeImage(forKey: "first")
+    await cache.insert(image, forKey: "third")
+    #expect(await cache.image(forKey: "second") === image)
+    #expect(await cache.image(forKey: "third") === image)
+}
+
+@Test func lruCacheDoesNotStoreImagesExceedingByteLimit() async throws {
+    let image = try await TestImageData.image()
+    let cache = LRUImageCache(totalCostLimit: image.bytesPerRow * image.height - 1)
+    await cache.insert(image, forKey: "oversized")
+    #expect(await cache.image(forKey: "oversized") == nil)
+    let disabled = LRUImageCache(totalCostLimit: 0)
+    await disabled.insert(image, forKey: "disabled")
+    #expect(await disabled.image(forKey: "disabled") == nil)
+}

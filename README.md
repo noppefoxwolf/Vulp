@@ -157,6 +157,8 @@ The processor downsamples `CGImage` values to the request's bucketed pixel size 
 
 ## Performance-conscious loading
 
+The default memory cache keeps at most 200 entries and 100 MiB of decoded bitmap data, measured as `bytesPerRow * height` per entry. It evicts the least recently used entries to satisfy both limits and skips images larger than the byte limit. Set `totalCostLimit` in bytes to customize the limit; zero disables storage. This bounds cached bitmap bytes, not total process memory.
+
 Share a loader across screens and cells instead of creating one for each view. The memory cache stores decoded images, while the disk cache stores encoded source data. If an image is requested at another size, the loader can decode it again from the cached source data without downloading it again. Clear both caches held by the standard loader with `await MediaImageLoader.default.clearCache()`.
 
 ```swift
@@ -172,7 +174,7 @@ let imageLoader = AppImageLoader(
     downloader: DefaultAssetDataDownloader(),
     decoders: [ImageIOImageDecoder()],
     processor: ResizeImageProcessor(),
-    cache: LRUImageCache(countLimit: 300),
+    cache: LRUImageCache(countLimit: 300, totalCostLimit: 100 * 1024 * 1024),
     dataCache: DiskAssetDataCache(
         maxSizeBytes: 200 * 1024 * 1024,
         maxAge: 14 * 24 * 60 * 60
