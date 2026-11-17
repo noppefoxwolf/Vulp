@@ -64,6 +64,50 @@ private func request(_ source: String = "source", size: CGSize = CGSize(width: 4
 }
 
 @MainActor
+@Test func imageViewDelegateReceivesManagedFailure() async throws {
+    let gate = ImageGate()
+    let view = AsyncImageView(frame: CGRect(x: 0, y: 0, width: 40, height: 40))
+    let window = UIWindow(frame: view.frame)
+    window.addSubview(view)
+    var failures = 0
+    let delegate = ImageViewCompletionDelegate { result in
+        if case .failure(let error) = result {
+            #expect(error is LoaderFailure)
+            failures += 1
+        } else {
+            Issue.record("Expected load failure")
+        }
+    }
+    view.delegate = delegate
+    view.loadImage(using: GatedLoader(gate: gate), request: { _, _ in try request() })
+    await gate.waitForStart()
+    await gate.finish(with: nil)
+    await view.imageLoading.waitForManagedLoad()
+    #expect(failures == 1)
+    withExtendedLifetime(delegate) {}
+}
+
+@MainActor
+@Test func imageViewDelegateDoesNotReceiveSupersededLoad() async throws {
+    let gate = ImageGate()
+    let view = AsyncImageView(frame: CGRect(x: 0, y: 0, width: 40, height: 40))
+    let window = UIWindow(frame: view.frame)
+    window.addSubview(view)
+    var completions = 0
+    let delegate = ImageViewCompletionDelegate { _ in completions += 1 }
+    view.delegate = delegate
+    view.loadImage(using: GatedLoader(gate: gate), request: { _, _ in try request() })
+    await gate.waitForStart()
+    let waiting = Task { await view.imageLoading.waitForManagedLoad() }
+    await Task.yield()
+    view.image = fixtureImage()
+    await gate.finish(with: fixtureImage())
+    await waiting.value
+    #expect(completions == 0)
+    withExtendedLifetime(delegate) {}
+}
+
+@MainActor
 @Test func placeholderCannotReplaceImageAfterGenerationHasStarted() async throws {
     let gate = ImageGate()
     let view = AsyncImageView()
@@ -135,9 +179,12 @@ private func request(_ source: String = "source", size: CGSize = CGSize(width: 4
     window.addSubview(view)
     let completion = AsyncStream<Void>.makeStream()
     var results = completion.stream.makeAsyncIterator()
-    view.loadImage(using: loader, request: { _, _ in try request() }, onCompletion: { _ in completion.continuation.yield(()) })
+    let delegate = ImageViewCompletionDelegate { _ in completion.continuation.yield(()) }
+    view.delegate = delegate
+    defer { withExtendedLifetime(delegate) {} }
+    view.loadImage(using: loader, request: { _, _ in try request() })
     await gate.waitForStart()
-    view.loadImage(using: loader, request: { _, _ in try request() }, onCompletion: { _ in completion.continuation.yield(()) })
+    view.loadImage(using: loader, request: { _, _ in try request() })
     let image = fixtureImage()
     await gate.finish(with: image)
     await results.next()
@@ -172,9 +219,12 @@ private func request(_ source: String = "source", size: CGSize = CGSize(width: 4
     window.addSubview(view)
     let completion = AsyncStream<Void>.makeStream()
     var results = completion.stream.makeAsyncIterator()
+    let delegate = ImageViewCompletionDelegate { _ in completion.continuation.yield(()) }
+    view.delegate = delegate
+    defer { withExtendedLifetime(delegate) {} }
     view.loadImage(using: GatedLoader(gate: gate), request: { size, _ in
         try request(size: size!)
-    }, onCompletion: { _ in completion.continuation.yield(()) })
+    })
     await gate.waitForStart()
     let firstImage = fixtureImage()
     await gate.finish(with: firstImage)
@@ -201,11 +251,14 @@ private func request(_ source: String = "source", size: CGSize = CGSize(width: 4
     window.addSubview(view)
     let completion = AsyncStream<Void>.makeStream()
     var results = completion.stream.makeAsyncIterator()
-    view.loadImage(using: loader, request: { _, _ in try request() }, onCompletion: { _ in completion.continuation.yield(()) })
+    let delegate = ImageViewCompletionDelegate { _ in completion.continuation.yield(()) }
+    view.delegate = delegate
+    defer { withExtendedLifetime(delegate) {} }
+    view.loadImage(using: loader, request: { _, _ in try request() })
     await gate.waitForStart()
     await gate.finish(with: nil)
     await results.next()
-    view.loadImage(using: loader, request: { _, _ in try request() }, onCompletion: { _ in completion.continuation.yield(()) })
+    view.loadImage(using: loader, request: { _, _ in try request() })
     await gate.waitForStart(2)
     let image = fixtureImage()
     await gate.finish(2, with: image)
@@ -276,8 +329,11 @@ private func findImageView(in view: UIView) -> AsyncImageView? {
     window.addSubview(view)
     let completion = AsyncStream<Void>.makeStream()
     var results = completion.stream.makeAsyncIterator()
+    let delegate = ImageViewCompletionDelegate { _ in completion.continuation.yield(()) }
+    view.delegate = delegate
+    defer { withExtendedLifetime(delegate) {} }
     view.setPlaceholder(PlaceholderAsset(id: "placeholder-6") { throw LoaderFailure.missingImage })
-    view.loadImage(using: GatedLoader(gate: gate), request: { _, _ in try request() }, onCompletion: { _ in completion.continuation.yield(()) })
+    view.loadImage(using: GatedLoader(gate: gate), request: { _, _ in try request() })
     let placeholderTask = view.placeholderLoading.task
     await placeholderTask?.value
     await gate.waitForStart()
@@ -296,10 +352,13 @@ private func findImageView(in view: UIView) -> AsyncImageView? {
     window.addSubview(view)
     let completion = AsyncStream<Void>.makeStream()
     var results = completion.stream.makeAsyncIterator()
+    let delegate = ImageViewCompletionDelegate { _ in completion.continuation.yield(()) }
+    view.delegate = delegate
+    defer { withExtendedLifetime(delegate) {} }
     view.setPlaceholder(PlaceholderAsset(id: "placeholder-7") { await placeholderGate.image() })
     view.loadImage(using: GatedLoader(gate: imageGate), request: { size, _ in
         try request(size!.width < 60 ? "old" : "new", size: size!)
-    }, onCompletion: { _ in completion.continuation.yield(()) })
+    })
     await imageGate.waitForStart()
     await placeholderGate.waitForStart()
     let oldPlaceholderTask = view.placeholderLoading.task

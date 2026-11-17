@@ -61,4 +61,44 @@ import UIKit
     #expect(view.subviews.isEmpty)
     #expect(view.contentMode == .scaleAspectFit)
 }
+@MainActor
+final class ImageViewCompletionDelegate: AsyncImageViewDelegate {
+    let completion: @MainActor (Result<CGImage, any Error>) -> Void
+
+    init(_ completion: @escaping @MainActor (Result<CGImage, any Error>) -> Void) {
+        self.completion = completion
+    }
+
+    func asyncImageView(_ imageView: AsyncImageView, didComplete result: Result<CGImage, any Error>) {
+        completion(result)
+    }
+}
+
+@MainActor
+@Test func uiKitImageViewDoesNotRetainDelegate() {
+    let view = AsyncImageView()
+    var delegate: ImageViewCompletionDelegate? = ImageViewCompletionDelegate { _ in }
+    view.delegate = delegate
+    #expect(view.delegate === delegate)
+    delegate = nil
+    #expect(view.delegate == nil)
+}
+
+@MainActor
+@Test func uiKitImageViewNotifiesDelegateAfterDisplayingImage() async throws {
+    let view = AsyncImageView()
+    let image = try await PlatformImageFixture.image()
+    var count = 0
+    let delegate = ImageViewCompletionDelegate { result in
+        #expect(view.image === image)
+        #expect((try? result.get()) === image)
+        count += 1
+    }
+    view.delegate = delegate
+    view.displayLoadedContent(.still(image), cacheIdentifier: "delegate")
+    #expect(count == 1)
+    view.displayLoadedContent(.still(image), cacheIdentifier: "explicit", notifyCompletion: false)
+    #expect(count == 1)
+    withExtendedLifetime(delegate) {}
+}
 #endif

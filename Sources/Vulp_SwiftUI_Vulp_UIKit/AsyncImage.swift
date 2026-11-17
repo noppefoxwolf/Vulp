@@ -101,6 +101,7 @@ public struct AsyncImage: UIViewRepresentable {
 
     private func update(_ view: Vulp_UIKit.AsyncImageView, coordinator: Coordinator) {
         coordinator.onCompletion = onCompletion
+        view.delegate = coordinator
         view.contentMode = UIView.ContentMode(contentMode)
         view.sizingMode = ImageViewSizingMode(sizingMode)
 
@@ -119,14 +120,19 @@ public struct AsyncImage: UIViewRepresentable {
             url: url,
             levelOfIntegrity: levelOfIntegrity,
             prefetchCount: prefetchCount
-        ) { [weak coordinator] result in
-            coordinator?.onCompletion?(result)
-        }
+        )
         view.setPlaceholder(placeholder)
     }
 
     @MainActor
-    public final class Coordinator {
+    public final class Coordinator: AsyncImageViewDelegate {
+        public func asyncImageView(
+            _ imageView: AsyncImageView,
+            didComplete result: Result<CGImage, any Error>
+        ) {
+            onCompletion?(result)
+        }
+
         fileprivate var url: URL?
         fileprivate var levelOfIntegrity: Double?
         fileprivate var prefetchCount: Int?

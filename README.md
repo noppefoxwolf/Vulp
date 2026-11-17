@@ -68,6 +68,26 @@ let imageView = AsyncImageView(frame: CGRect(x: 0, y: 0, width: 200, height: 200
 imageView.loadImage(url: url)
 ```
 
+UIKit completion is delivered through a caller-retained delegate. SwiftUI's wrapper
+uses its Coordinator as the delegate and forwards results to `onCompletion`.
+
+```swift
+@MainActor
+final class ImageObserver: AsyncImageViewDelegate {
+    func asyncImageView(_ imageView: AsyncImageView, didComplete result: Result<CGImage, any Error>) {
+        // Handle the displayed image or loading error.
+    }
+}
+
+let observer = ImageObserver() // Keep this alive while receiving results.
+imageView.delegate = observer
+imageView.loadImage(url: url)
+```
+
+Delegate notifications cover view-managed loads, including the first frame of an
+animated image. Cancellation is silent; explicit `async throws` loads return their
+result through the caller's task.
+
 Call it after the view has its final bounds. The view owns and cancels its loading task when a new image is requested or its image is replaced. For full control over request size, caching, and the loader, use the request-builder overload. `MediaImageLoader.default` is preconfigured with URLSession, ImageIO, AVFoundation, resizing, and an in-memory cache.
 
 ### Asynchronous image placeholders

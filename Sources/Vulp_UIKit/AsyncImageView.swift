@@ -15,7 +15,8 @@ public final class AsyncImageView: UIView {
     private var currentSourceIdentifier: String?
     private var lastRequestLayoutKey: RequestLayoutKey?
     private var playbackOptions: PlaybackOptions?
-    private var imageCompletionHandler: (@MainActor @Sendable (Result<CGImage, any Error>) -> Void)?
+    /// Receives completion of view-managed loads. The caller retains the delegate.
+    public weak var delegate: (any AsyncImageViewDelegate)?
 
     /// Controls request-builder loads and intrinsic sizing; sequence loads use their explicit `targetSize` argument.
     public var sizingMode: ImageViewSizingMode = .viewBounds {
@@ -57,8 +58,7 @@ public final class AsyncImageView: UIView {
         using loader: Loader = MediaImageLoader.default,
         levelOfIntegrity: Double = 1,
         prefetchCount: Int = 3,
-        request: @escaping @MainActor @Sendable (CGSize?, CGFloat) throws -> Request,
-        onCompletion: (@MainActor @Sendable (Result<CGImage, any Error>) -> Void)? = nil
+        request: @escaping @MainActor @Sendable (CGSize?, CGFloat) throws -> Request
     ) {
         let options = PlaybackOptions(levelOfIntegrity: levelOfIntegrity, prefetchCount: prefetchCount)
         if playbackOptions != options {
@@ -66,7 +66,6 @@ public final class AsyncImageView: UIView {
         }
         playbackOptions = options
         lastRequestLayoutKey = nil
-        imageCompletionHandler = onCompletion
         makeImageOperation = { targetSize, scale in
             do {
                 let imageRequest = try request(targetSize, scale)
@@ -230,13 +229,13 @@ public final class AsyncImageView: UIView {
             loadedCacheIdentifier = cacheIdentifier
             setDisplayedImage(image)
             if notifyCompletion {
-                imageCompletionHandler?(.success(image))
+                delegate?.asyncImageView(self, didComplete: .success(image))
             }
         case .sequence(let playback):
             loadedCacheIdentifier = nil
             sequencePlayback.play(playback, view: self)
             if notifyCompletion {
-                imageCompletionHandler?(.success(playback.firstFrame))
+                delegate?.asyncImageView(self, didComplete: .success(playback.firstFrame))
             }
         }
     }
@@ -293,7 +292,7 @@ public final class AsyncImageView: UIView {
             case .failure(let error):
                 self.currentCacheIdentifier = nil
                 if !(error is CancellationError) {
-                    self.imageCompletionHandler?(.failure(error))
+                    self.delegate?.asyncImageView(self, didComplete: .failure(error))
                 }
             }
         }
