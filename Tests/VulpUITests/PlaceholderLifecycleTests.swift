@@ -222,12 +222,10 @@ private func request(_ source: String = "source", size: CGSize = CGSize(width: 4
     window.addSubview(host.view)
     host.view.layoutIfNeeded()
     let view = try #require(findImageView(in: host.view))
-    let imageGeneration = view.imageLoadGeneration
     host.rootView = VulpUI.AsyncImage(url: url, placeholderID: "blurhash", placeholder: { await gate.image() }).frame(width: 0, height: 0)
     host.view.setNeedsLayout()
     host.view.layoutIfNeeded()
     await gate.waitForStart()
-    #expect(view.imageLoadGeneration == imageGeneration)
     let task = view.placeholderLoading.task
     let image = fixtureImage()
     await gate.finish(with: image)
@@ -341,9 +339,8 @@ private func findImageView(in view: UIView) -> AsyncImageView? {
     view.loadImage(using: loader, request: { _, _ in try request() })
     #expect(view.image === placeholder)
     #expect(view.placeholderLoading.task == nil)
-    let imageTask = view.imageLoadTask
     await gate.finish(with: fixtureImage())
-    await imageTask?.value
+    await view.imageLoading.waitForManagedLoad()
 }
 
 @MainActor
@@ -368,9 +365,8 @@ private func findImageView(in view: UIView) -> AsyncImageView? {
     await originalTask.value
     await replacementTask?.value
     #expect(view.image === placeholder)
-    let imageTask = view.imageLoadTask
     await imageGate.finish(with: fixtureImage())
-    await imageTask?.value
+    await view.imageLoading.waitForManagedLoad()
 }
 
 @MainActor
@@ -410,18 +406,18 @@ private struct CancellingLoader: MediaImageLoading {
     window.addSubview(view)
     view.loadImage(using: loader, request: { _, _ in try request() })
     await gate.waitForStart()
-    let firstTask = try #require(view.imageLoadTask)
+    try #require(view.imageLoading.hasManagedLoad)
     await gate.finish(with: nil)
-    await firstTask.value
+    await view.imageLoading.waitForManagedLoad()
     view.loadImage(using: loader, request: { _, _ in try request() })
-    guard let retryTask = view.imageLoadTask else {
+    guard view.imageLoading.hasManagedLoad else {
         Issue.record("The cancelled request must be retryable with the same identifier")
         return
     }
     await gate.waitForStart(2)
     let image = fixtureImage()
     await gate.finish(2, with: image)
-    await retryTask.value
+    await view.imageLoading.waitForManagedLoad()
     #expect(view.image === image)
 }
 
@@ -438,7 +434,6 @@ private struct CancellingLoader: MediaImageLoading {
     view.loadImage(using: loader, request: { _, _ in try request() })
     await imageGate.waitForStart()
     await oldGate.waitForStart()
-    let imageTask = try #require(view.imageLoadTask)
     let oldTask = try #require(view.placeholderLoading.task)
     view.setPlaceholder(id: "old") { nil }
     view.loadImage(using: loader, request: { _, _ in try request() })
@@ -448,7 +443,7 @@ private struct CancellingLoader: MediaImageLoading {
     view.loadImage(using: loader, request: { _, _ in try request() })
     await newGate.waitForStart()
     #expect(oldTask.isCancelled)
-    #expect(view.imageLoadTask == imageTask)
+    #expect(await imageGate.count == 1)
     let placeholderTask = view.placeholderLoading.task
     let placeholder = fixtureImage()
     await newGate.finish(with: placeholder)
@@ -457,7 +452,7 @@ private struct CancellingLoader: MediaImageLoading {
     await oldTask.value
     #expect(view.image === placeholder)
     await imageGate.finish(with: fixtureImage())
-    await imageTask.value
+    await view.imageLoading.waitForManagedLoad()
 }
 
 @MainActor
@@ -471,12 +466,10 @@ private struct CancellingLoader: MediaImageLoading {
     let view = try #require(findImageView(in: host.view))
     await gate.waitForStart()
     let task = try #require(view.placeholderLoading.task)
-    let generation = view.imageLoadGeneration
     host.rootView = VulpUI.AsyncImage(url: url, contentMode: .fill, placeholderID: "a", placeholder: { nil }).frame(width: 0, height: 0)
     host.view.setNeedsLayout()
     host.view.layoutIfNeeded()
     #expect(view.contentMode == .scaleAspectFill)
-    #expect(view.imageLoadGeneration == generation)
     #expect(view.placeholderLoading.task == task)
     let image = fixtureImage()
     await gate.finish(with: image)
@@ -535,5 +528,36 @@ func `Placeholder configuration is independent of async image loading`(configure
     await gate.finish(2, with: secondImage)
     try await second.value
     #expect(view.image === secondImage)
+}
+
+@MainActor
+@Test func `Completing one load does not clear a replacement started by its callback`() async throws {
+    let loading = ImageContentLoading()
+    let firstGate = ImageGate()
+    let secondGate = ImageGate()
+    let firstImage = fixtureImage()
+    let secondImage = fixtureImage()
+    var displayedImage: CGImage?
+    loading.start({
+        _ = await firstGate.image()
+        return .still(firstImage)
+    }, onResult: { result in
+        if case .success = result {
+            loading.start({
+                _ = await secondGate.image()
+                return .still(secondImage)
+            }, onResult: { result in
+                if case .success(.still(let image)) = result { displayedImage = image }
+            })
+        }
+    })
+    await firstGate.waitForStart()
+    await firstGate.finish(with: firstImage)
+    await secondGate.waitForStart()
+    #expect(loading.hasManagedLoad)
+    await secondGate.finish(with: secondImage)
+    await loading.waitForManagedLoad()
+    #expect(displayedImage === secondImage)
+    #expect(!loading.hasManagedLoad)
 }
 #endif

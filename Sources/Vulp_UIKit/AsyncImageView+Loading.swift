@@ -41,19 +41,18 @@ public extension AsyncImageView {
     ) async throws {
         let request = try MediaImageRequest(asset: asset, targetSize: targetSize)
         prepareExplicitImageLoad(sourceIdentifier: asset.uniqueKey)
-        let generation = imageLoadGeneration
-        defer {
-            if imageLoadGeneration == generation { placeholderLoading.suspend() }
-        }
-        let content = try await Self.loadImageRequest(
-            request,
-            using: loader,
-            levelOfIntegrity: levelOfIntegrity,
-            prefetchCount: prefetchCount
-        )
-        try Task.checkCancellation()
-        guard imageLoadGeneration == generation else { throw CancellationError() }
-        displayLoadedContent(content, cacheIdentifier: request.cacheIdentifier, notifyCompletion: false)
+        try await imageLoading.load({
+            try await Self.loadImageRequest(
+                request,
+                using: loader,
+                levelOfIntegrity: levelOfIntegrity,
+                prefetchCount: prefetchCount
+            )
+        }, onSuccess: { [weak self] content in
+            self?.displayLoadedContent(content, cacheIdentifier: request.cacheIdentifier, notifyCompletion: false)
+        }, onFinish: { [weak self] in
+            self?.placeholderLoading.suspend()
+        })
     }
 }
 #endif

@@ -7,6 +7,7 @@ import UIKit
 public final class AsyncImageView: UIView {
     private let sequencePlayback = ImageSequencePlayback()
     let placeholderLoading = ImagePlaceholderLoading()
+    let imageLoading = ImageContentLoading()
     private var displayedImage: CGImage?
     private(set) var hasLoadedImage = false
     private(set) var isImageLoadDetached = false
@@ -16,8 +17,6 @@ public final class AsyncImageView: UIView {
     private var currentSourceIdentifier: String?
     var placeholderIdentity: ImagePlaceholderIdentity?
     private var lastRequestLayoutKey: RequestLayoutKey?
-    private(set) var imageLoadTask: Task<Void, Never>?
-    private(set) var imageLoadGeneration = UUID()
     private var playbackOptions: PlaybackOptions?
     private var imageCompletionHandler: (@MainActor @Sendable (Result<CGImage, any Error>) -> Void)?
 
@@ -94,7 +93,7 @@ public final class AsyncImageView: UIView {
         updateImageIfNeeded()
         if lastRequestLayoutKey == nil {
             // Until the builder can identify the request, supersede any previous work.
-            invalidateImageRequest()
+            imageLoading.invalidate()
             currentCacheIdentifier = nil
         }
         resumePlaceholderIfNeeded()
@@ -106,7 +105,7 @@ public final class AsyncImageView: UIView {
     }
 
     isolated deinit {
-        imageLoadTask?.cancel()
+        imageLoading.invalidate()
         placeholderLoading.cancel()
         sequencePlayback.stop()
     }
@@ -161,7 +160,7 @@ public final class AsyncImageView: UIView {
 
     func resetForNewImageSource() {
         placeholderLoading.cancel()
-        invalidateImageRequest()
+        imageLoading.invalidate()
         makeImageOperation = nil
         currentCacheIdentifier = nil
         loadedCacheIdentifier = nil
@@ -175,7 +174,6 @@ public final class AsyncImageView: UIView {
 
     /// The async overload shares source selection, but its task remains caller-owned.
     func prepareExplicitImageLoad(sourceIdentifier: String) {
-        invalidateImageRequest()
         makeImageOperation = nil
         currentCacheIdentifier = nil
         lastRequestLayoutKey = nil
@@ -196,16 +194,6 @@ public final class AsyncImageView: UIView {
         currentSourceIdentifier = sourceIdentifier
         currentCacheIdentifier = nil
         loadedCacheIdentifier = nil
-    }
-
-    private func invalidateImageRequest() {
-        imageLoadGeneration = UUID()
-        cancelImageLoadTask()
-    }
-
-    private func cancelImageLoadTask() {
-        imageLoadTask?.cancel()
-        imageLoadTask = nil
     }
 
     func setDisplayedImage(_ image: CGImage?) {
@@ -285,37 +273,22 @@ public final class AsyncImageView: UIView {
         guard operation.cacheIdentifier != currentCacheIdentifier else { return }
 
         currentCacheIdentifier = operation.cacheIdentifier
-        invalidateImageRequest()
         sequencePlayback.stop()
         if loadedCacheIdentifier == operation.cacheIdentifier, let displayedImage {
+            imageLoading.invalidate()
             setDisplayedImage(displayedImage)
             return
         }
-        let generation = imageLoadGeneration
-        imageLoadTask = Task { @MainActor [weak self] in
-            defer {
-                if let self, self.imageLoadGeneration == generation { self.imageLoadTask = nil }
-            }
-            do {
-                let image = try await operation.load()
-                try Task.checkCancellation()
-                guard let self,
-                      self.imageLoadGeneration == generation
-                else {
-                    return
-                }
-                self.displayLoadedContent(image, cacheIdentifier: operation.cacheIdentifier)
-            } catch is CancellationError {
-                guard let self, self.imageLoadGeneration == generation else { return }
+        imageLoading.start(operation.load) { [weak self] result in
+            guard let self else { return }
+            switch result {
+            case .success(let content):
+                self.displayLoadedContent(content, cacheIdentifier: operation.cacheIdentifier)
+            case .failure(let error):
                 self.currentCacheIdentifier = nil
-            } catch {
-                guard let self,
-                      self.imageLoadGeneration == generation
-                else {
-                    return
+                if !(error is CancellationError) {
+                    self.imageCompletionHandler?(.failure(error))
                 }
-                self.currentCacheIdentifier = nil
-                self.imageCompletionHandler?(.failure(error))
             }
         }
     }
@@ -392,8 +365,7 @@ public final class AsyncImageView: UIView {
     private func cancelImageLoadForDetachment() {
         isImageLoadDetached = true
         placeholderLoading.suspend()
-        // The async overload is owned by its caller, not by imageLoadTask.
-        if imageLoadTask != nil { invalidateImageRequest() }
+        imageLoading.cancelManagedLoad()
         currentCacheIdentifier = nil
         lastRequestLayoutKey = nil
         sequencePlayback.stop()
