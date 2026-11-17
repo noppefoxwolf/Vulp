@@ -313,4 +313,103 @@ private func findImageView(in view: UIView) -> AsyncImageView? {
     await results.next()
     #expect(view.image === image)
 }
+
+@MainActor
+@Test func `Repeated request keeps its rendered placeholder`() async throws {
+    let gate = ImageGate()
+    let view = AsyncImageView(frame: CGRect(x: 0, y: 0, width: 40, height: 40))
+    let window = UIWindow(frame: view.frame)
+    window.addSubview(view)
+    let placeholder = fixtureImage()
+    let loader = GatedLoader(gate: gate)
+    view.loadImage(using: loader, placeholder: { placeholder }, request: { _, _ in try request() })
+    let placeholderTask = view.placeholderLoading.task
+    await gate.waitForStart()
+    await placeholderTask?.value
+    #expect(view.image === placeholder)
+    view.loadImage(using: loader, placeholder: { placeholder }, request: { _, _ in try request() })
+    #expect(view.image === placeholder)
+    #expect(view.placeholderLoading.task == nil)
+    let imageTask = view.imageLoadTask
+    await gate.finish(with: fixtureImage())
+    await imageTask?.value
+}
+
+@MainActor
+@Test func `Repeated request keeps its running placeholder generation`() async throws {
+    let imageGate = ImageGate()
+    let placeholderGate = ImageGate()
+    let view = AsyncImageView(frame: CGRect(x: 0, y: 0, width: 40, height: 40))
+    let window = UIWindow(frame: view.frame)
+    window.addSubview(view)
+    let loader = GatedLoader(gate: imageGate)
+    view.loadImage(using: loader, placeholder: { await placeholderGate.image() }, request: { _, _ in try request() })
+    await imageGate.waitForStart()
+    await placeholderGate.waitForStart()
+    let originalTask = try #require(view.placeholderLoading.task)
+    view.loadImage(using: loader, placeholder: { nil }, request: { _, _ in try request() })
+    #expect(!originalTask.isCancelled)
+    #expect(view.placeholderLoading.task == originalTask)
+    let replacementTask = view.placeholderLoading.task
+    let placeholder = fixtureImage()
+    await placeholderGate.finish(with: placeholder)
+    await originalTask.value
+    await replacementTask?.value
+    #expect(view.image === placeholder)
+    let imageTask = view.imageLoadTask
+    await imageGate.finish(with: fixtureImage())
+    await imageTask?.value
+}
+
+@MainActor
+@Test func `Explicit image load survives temporary reattachment`() async throws {
+    let gate = ImageGate()
+    let view = AsyncImageView(frame: CGRect(x: 0, y: 0, width: 40, height: 40))
+    let window = UIWindow(frame: view.frame)
+    window.addSubview(view)
+    let task = Task {
+        try await view.loadImage(asset: DataMediaAsset(data: Data(), uniqueKey: "a"), using: GatedLoader(gate: gate), targetSize: CGSize(width: 40, height: 40))
+    }
+    await gate.waitForStart()
+    view.removeFromSuperview()
+    window.addSubview(view)
+    let image = fixtureImage()
+    await gate.finish(with: image)
+    await #expect(throws: Never.self) { try await task.value }
+    #expect(view.image === image)
+}
+
+private struct CancellingLoader: MediaImageLoading {
+    let gate: ImageGate
+
+    @concurrent
+    func load<Request: MediaImageRequestProtocol>(_ request: Request, priority: TaskPriority) async throws -> CGImage {
+        guard let image = await gate.image() else { throw CancellationError() }
+        return image
+    }
+}
+
+@MainActor
+@Test func `Cancelled loader releases its request identifier for retry`() async throws {
+    let gate = ImageGate()
+    let loader = CancellingLoader(gate: gate)
+    let view = AsyncImageView(frame: CGRect(x: 0, y: 0, width: 40, height: 40))
+    let window = UIWindow(frame: view.frame)
+    window.addSubview(view)
+    view.loadImage(using: loader, request: { _, _ in try request() })
+    await gate.waitForStart()
+    let firstTask = try #require(view.imageLoadTask)
+    await gate.finish(with: nil)
+    await firstTask.value
+    view.loadImage(using: loader, request: { _, _ in try request() })
+    guard let retryTask = view.imageLoadTask else {
+        Issue.record("The cancelled request must be retryable with the same identifier")
+        return
+    }
+    await gate.waitForStart(2)
+    let image = fixtureImage()
+    await gate.finish(2, with: image)
+    await retryTask.value
+    #expect(view.image === image)
+}
 #endif

@@ -88,10 +88,15 @@ an existing image with `{ placeholderImage }`. A loaded image always takes prece
 changing the source or assigning `image` cancels pending placeholder work. Placeholder
 errors are ignored, and the placeholder remains visible if the image load fails.
 Vulp does not include a BlurHash decoder; supply your own renderer returning `CGImage`.
-Setting the same UIKit request again reuses its in-flight or loaded image. Resizing
-keeps a displayed image visible while loading the new size. Leaving the window suspends
+Setting the same UIKit request again reuses its in-flight or loaded image and preserves
+its rendered or generating placeholder. Use `setPlaceholder` to explicitly replace
+that provider. Resizing keeps a displayed image visible while loading the new size. Leaving the window suspends
 unfinished placeholder generation; reattachment restarts it. Providers should cooperate
 with task cancellation to stop expensive work promptly.
+
+The `async` asset-loading overload is owned by the calling task: temporary detachment
+and reattachment do not invalidate its result. Cancel the calling task to cancel that
+load; replacing the source or assigning `image` still prevents its result from being displayed.
 
 Use `imageView.setPlaceholder { ... }` to update only the placeholder while the image
 is still loading. In the SwiftUI wrapper, set `placeholderID` (for example, to the
