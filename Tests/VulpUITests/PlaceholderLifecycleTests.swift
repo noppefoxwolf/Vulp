@@ -69,7 +69,7 @@ private func request(_ source: String = "source", size: CGSize = CGSize(width: 4
     let view = AsyncImageView()
     let image = fixtureImage()
     view.loadImage(url: URL(string: "https://example.com/a")!)
-    view.setPlaceholder { await gate.image() }
+    view.setPlaceholder(PlaceholderAsset(id: "placeholder-0") { await gate.image() })
     await gate.waitForStart()
     let task = view.placeholderLoading.task
     view.displayLoadedContent(.still(image), cacheIdentifier: "loaded")
@@ -85,14 +85,14 @@ private func request(_ source: String = "source", size: CGSize = CGSize(width: 4
     let view = AsyncImageView()
     let image = fixtureImage()
     view.loadImage(url: URL(string: "https://example.com/a")!)
-    view.setPlaceholder {
+    view.setPlaceholder(PlaceholderAsset(id: "placeholder-1") {
         #expect(!placeholderRunsOnMainThread())
         return await oldGate.image()
-    }
+    })
     await oldGate.waitForStart()
     let oldTask = view.placeholderLoading.task
     view.loadImage(url: URL(string: "https://example.com/b")!)
-    view.setPlaceholder { await newGate.image() }
+    view.setPlaceholder(PlaceholderAsset(id: "placeholder-2") { await newGate.image() })
     await newGate.waitForStart()
     let newTask = view.placeholderLoading.task
     await newGate.finish(with: image)
@@ -109,7 +109,7 @@ private func request(_ source: String = "source", size: CGSize = CGSize(width: 4
     let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
     window.addSubview(view)
     view.loadImage(url: URL(string: "https://example.com/a")!)
-    view.setPlaceholder { await gate.image() }
+    view.setPlaceholder(PlaceholderAsset(id: "placeholder-3") { await gate.image() })
     await gate.waitForStart()
     let oldTask = view.placeholderLoading.task
     view.removeFromSuperview()
@@ -156,7 +156,7 @@ private func request(_ source: String = "source", size: CGSize = CGSize(width: 4
     let image = fixtureImage()
     let task = Task { try await view.loadImage(asset: DataMediaAsset(data: Data(), uniqueKey: "a"), using: GatedLoader(gate: imageGate), targetSize: CGSize(width: 40, height: 40)) }
     await imageGate.waitForStart()
-    view.setPlaceholder { await placeholderGate.image() }
+    view.setPlaceholder(PlaceholderAsset(id: "placeholder-4") { await placeholderGate.image() })
     await placeholderGate.waitForStart()
     await imageGate.finish(with: image)
     try await task.value
@@ -184,7 +184,7 @@ private func request(_ source: String = "source", size: CGSize = CGSize(width: 4
     view.layoutIfNeeded()
     await gate.waitForStart(2)
     #expect(view.image === firstImage)
-    view.setPlaceholder { firstImage }
+    view.setPlaceholder(PlaceholderAsset(id: "placeholder-5") { firstImage })
     #expect(view.placeholderLoading.task == nil)
     let secondImage = fixtureImage()
     await gate.finish(2, with: secondImage)
@@ -222,7 +222,7 @@ private func request(_ source: String = "source", size: CGSize = CGSize(width: 4
     window.addSubview(host.view)
     host.view.layoutIfNeeded()
     let view = try #require(findImageView(in: host.view))
-    host.rootView = VulpUI.AsyncImage(url: url, placeholderID: "blurhash", placeholder: { await gate.image() }).frame(width: 0, height: 0)
+    host.rootView = VulpUI.AsyncImage(url: url, placeholder: PlaceholderAsset(id: "blurhash") { await gate.image() }).frame(width: 0, height: 0)
     host.view.setNeedsLayout()
     host.view.layoutIfNeeded()
     await gate.waitForStart()
@@ -276,7 +276,7 @@ private func findImageView(in view: UIView) -> AsyncImageView? {
     window.addSubview(view)
     let completion = AsyncStream<Void>.makeStream()
     var results = completion.stream.makeAsyncIterator()
-    view.setPlaceholder { throw LoaderFailure.missingImage }
+    view.setPlaceholder(PlaceholderAsset(id: "placeholder-6") { throw LoaderFailure.missingImage })
     view.loadImage(using: GatedLoader(gate: gate), request: { _, _ in try request() }, onCompletion: { _ in completion.continuation.yield(()) })
     let placeholderTask = view.placeholderLoading.task
     await placeholderTask?.value
@@ -296,7 +296,7 @@ private func findImageView(in view: UIView) -> AsyncImageView? {
     window.addSubview(view)
     let completion = AsyncStream<Void>.makeStream()
     var results = completion.stream.makeAsyncIterator()
-    view.setPlaceholder { await placeholderGate.image() }
+    view.setPlaceholder(PlaceholderAsset(id: "placeholder-7") { await placeholderGate.image() })
     view.loadImage(using: GatedLoader(gate: imageGate), request: { size, _ in
         try request(size!.width < 60 ? "old" : "new", size: size!)
     }, onCompletion: { _ in completion.continuation.yield(()) })
@@ -330,7 +330,7 @@ private func findImageView(in view: UIView) -> AsyncImageView? {
     window.addSubview(view)
     let placeholder = fixtureImage()
     let loader = GatedLoader(gate: gate)
-    view.setPlaceholder { placeholder }
+    view.setPlaceholder(PlaceholderAsset(id: "placeholder-8") { placeholder })
     view.loadImage(using: loader, request: { _, _ in try request() })
     let placeholderTask = view.placeholderLoading.task
     await gate.waitForStart()
@@ -351,7 +351,7 @@ private func findImageView(in view: UIView) -> AsyncImageView? {
     let window = UIWindow(frame: view.frame)
     window.addSubview(view)
     let loader = GatedLoader(gate: imageGate)
-    view.setPlaceholder { await placeholderGate.image() }
+    view.setPlaceholder(PlaceholderAsset(id: "placeholder-9") { await placeholderGate.image() })
     view.loadImage(using: loader, request: { _, _ in try request() })
     await imageGate.waitForStart()
     await placeholderGate.waitForStart()
@@ -430,16 +430,16 @@ private struct CancellingLoader: MediaImageLoading {
     let window = UIWindow(frame: view.frame)
     window.addSubview(view)
     let loader = GatedLoader(gate: imageGate)
-    view.setPlaceholder(id: "old") { await oldGate.image() }
+    view.setPlaceholder(PlaceholderAsset(id: "old") { await oldGate.image() })
     view.loadImage(using: loader, request: { _, _ in try request() })
     await imageGate.waitForStart()
     await oldGate.waitForStart()
     let oldTask = try #require(view.placeholderLoading.task)
-    view.setPlaceholder(id: "old") { nil }
+    view.setPlaceholder(PlaceholderAsset(id: "old") { nil })
     view.loadImage(using: loader, request: { _, _ in try request() })
     #expect(view.placeholderLoading.task == oldTask)
     #expect(!oldTask.isCancelled)
-    view.setPlaceholder(id: "new") { await newGate.image() }
+    view.setPlaceholder(PlaceholderAsset(id: "new") { await newGate.image() })
     view.loadImage(using: loader, request: { _, _ in try request() })
     await newGate.waitForStart()
     #expect(oldTask.isCancelled)
@@ -459,14 +459,14 @@ private struct CancellingLoader: MediaImageLoading {
 @Test func `SwiftUI forwards repeated updates without replacing the same placeholder`() async throws {
     let gate = ImageGate()
     let url = URL(string: "https://example.com/a")!
-    let host = UIHostingController(rootView: VulpUI.AsyncImage(url: url, placeholderID: "a", placeholder: { await gate.image() }).frame(width: 0, height: 0))
+    let host = UIHostingController(rootView: VulpUI.AsyncImage(url: url, placeholder: PlaceholderAsset(id: "a") { await gate.image() }).frame(width: 0, height: 0))
     let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
     window.addSubview(host.view)
     host.view.layoutIfNeeded()
     let view = try #require(findImageView(in: host.view))
     await gate.waitForStart()
     let task = try #require(view.placeholderLoading.task)
-    host.rootView = VulpUI.AsyncImage(url: url, contentMode: .fill, placeholderID: "a", placeholder: { nil }).frame(width: 0, height: 0)
+    host.rootView = VulpUI.AsyncImage(url: url, contentMode: .fill, placeholder: PlaceholderAsset(id: "a") { nil }).frame(width: 0, height: 0)
     host.view.setNeedsLayout()
     host.view.layoutIfNeeded()
     #expect(view.contentMode == .scaleAspectFill)
@@ -484,7 +484,7 @@ func `Placeholder configuration is independent of async image loading`(configure
     let view = AsyncImageView()
     let placeholder = fixtureImage()
     if configureBeforeLoad {
-        view.setPlaceholder(id: "placeholder") { placeholder }
+        view.setPlaceholder(PlaceholderAsset(id: "placeholder") { placeholder })
         await view.placeholderLoading.task?.value
     }
     let load = Task {
@@ -492,7 +492,7 @@ func `Placeholder configuration is independent of async image loading`(configure
     }
     await gate.waitForStart()
     if !configureBeforeLoad {
-        view.setPlaceholder(id: "placeholder") { placeholder }
+        view.setPlaceholder(PlaceholderAsset(id: "placeholder") { placeholder })
         await view.placeholderLoading.task?.value
     }
     #expect(view.image === placeholder)
@@ -515,7 +515,7 @@ func `Placeholder configuration is independent of async image loading`(configure
     await gate.finish(with: firstImage)
     try await first.value
     let placeholder = fixtureImage()
-    view.setPlaceholder(id: "next") { placeholder }
+    view.setPlaceholder(PlaceholderAsset(id: "next") { placeholder })
     #expect(view.image === firstImage)
     #expect(view.placeholderLoading.task == nil)
     let second = Task {
@@ -568,7 +568,7 @@ func `Placeholder configuration is independent of async image loading`(configure
     let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
     window.addSubview(view)
     view.removeFromSuperview()
-    view.setPlaceholder(id: "detached") { await gate.image() }
+    view.setPlaceholder(PlaceholderAsset(id: "detached") { await gate.image() })
     #expect(view.placeholderLoading.task == nil)
     window.addSubview(view)
     await gate.waitForStart()
@@ -583,11 +583,33 @@ func `Placeholder configuration is independent of async image loading`(configure
 @Test func `Assigning the placeholder image as real content changes its presentation role`() async throws {
     let image = fixtureImage()
     let view = AsyncImageView()
-    view.setPlaceholder { image }
+    view.setPlaceholder(PlaceholderAsset(id: "placeholder-17") { image })
     await view.placeholderLoading.task?.value
     #expect(view.image === image)
     view.image = image
     view.setPlaceholder(nil)
+    #expect(view.image === image)
+}
+
+@MainActor
+@Test func `Clearing the placeholder asset rejects pending output and allows the same asset again`() async throws {
+    let gate = ImageGate()
+    let view = AsyncImageView()
+    let asset = PlaceholderAsset(id: "reusable") { await gate.image() }
+    view.setPlaceholder(asset)
+    await gate.waitForStart()
+    let oldTask = view.placeholderLoading.task
+    view.setPlaceholder(nil)
+    #expect(view.placeholderLoading.task == nil)
+    await gate.finish(with: fixtureImage())
+    await oldTask?.value
+    #expect(view.image == nil)
+    view.setPlaceholder(asset)
+    await gate.waitForStart(2)
+    let task = view.placeholderLoading.task
+    let image = fixtureImage()
+    await gate.finish(2, with: image)
+    await task?.value
     #expect(view.image === image)
 }
 #endif

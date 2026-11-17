@@ -1,5 +1,6 @@
 #if canImport(UIKit)
 import UIKit
+import Vulp
 
 /// Owns placeholder generation and rejects results from superseded loads.
 @MainActor
@@ -17,7 +18,7 @@ final class ImagePlaceholderLoading {
 
     private var state: State = .ready
     private var generation = UUID()
-    private var placeholder: (@Sendable () async throws -> CGImage?)?
+    private var asset: PlaceholderAsset?
     private var onImage: (@MainActor (CGImage?) -> Void)?
 
     /// Inactive generation is cancelled; becoming active does not start work automatically.
@@ -31,23 +32,24 @@ final class ImagePlaceholderLoading {
         if case .generating(let task) = state { task } else { nil }
     }
 
-    func setProvider(
-        _ placeholder: (@Sendable () async throws -> CGImage?)?,
+    func setAsset(
+        _ asset: PlaceholderAsset?,
         onImage: @escaping @MainActor (CGImage?) -> Void
     ) {
-        clearProvider()
-        self.placeholder = placeholder
+        guard self.asset?.id != asset?.id else { return }
+        clearAsset()
+        self.asset = asset
         self.onImage = onImage
     }
 
     func startIfNeeded() {
         guard case .ready = state, activityState == .active,
-              let placeholder, let onImage else { return }
+              let asset, let onImage else { return }
         let generation = generation
         state = .generating(Task { [weak self] in
             do {
                 try Task.checkCancellation()
-                let image = try await Self.generate(placeholder)
+                let image = try await asset.image()
                 try Task.checkCancellation()
                 guard let self, self.generation == generation else { return }
                 self.state = .finished
@@ -60,13 +62,13 @@ final class ImagePlaceholderLoading {
         })
     }
 
-    /// Invalidates the previous source's work while retaining the configured provider.
+    /// Invalidates the previous source's work while retaining the configured asset.
     func resetGeneration() {
         cancelGeneration()
         state = .ready
     }
 
-    /// Cancels in-flight work while preserving the provider and any finished state.
+    /// Cancels in-flight work while preserving the asset and any finished state.
     func cancelGeneration() {
         generation = UUID()
         if case .generating(let task) = state {
@@ -75,23 +77,16 @@ final class ImagePlaceholderLoading {
         }
     }
 
-    /// Cancels generation and removes the configured provider and delivery callback.
-    func clearProvider() {
+    /// Cancels generation and removes the configured asset and delivery callback.
+    func clearAsset() {
         cancelGeneration()
-        placeholder = nil
+        asset = nil
         onImage = nil
         state = .ready
     }
 
     isolated deinit {
         task?.cancel()
-    }
-
-    @concurrent
-    private static func generate(
-        _ placeholder: @Sendable () async throws -> CGImage?
-    ) async throws -> CGImage? {
-        try await placeholder()
     }
 }
 #endif

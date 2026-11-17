@@ -13,7 +13,6 @@ public final class AsyncImageView: UIView {
     private var currentCacheIdentifier: String?
     private var loadedCacheIdentifier: String?
     private var currentSourceIdentifier: String?
-    var placeholderIdentity: ImagePlaceholderIdentity?
     private var lastRequestLayoutKey: RequestLayoutKey?
     private var playbackOptions: PlaybackOptions?
     private var imageCompletionHandler: (@MainActor @Sendable (Result<CGImage, any Error>) -> Void)?
@@ -103,7 +102,7 @@ public final class AsyncImageView: UIView {
 
     isolated deinit {
         imageLoading.invalidate()
-        placeholderLoading.clearProvider()
+        placeholderLoading.clearAsset()
         sequencePlayback.stop()
     }
 
@@ -156,13 +155,12 @@ public final class AsyncImageView: UIView {
     }
 
     func resetForNewImageSource() {
-        placeholderLoading.clearProvider()
+        placeholderLoading.clearAsset()
         imageLoading.invalidate()
         makeImageOperation = nil
         currentCacheIdentifier = nil
         loadedCacheIdentifier = nil
         currentSourceIdentifier = nil
-        placeholderIdentity = nil
         lastRequestLayoutKey = nil
         playbackOptions = nil
         sequencePlayback.stop()

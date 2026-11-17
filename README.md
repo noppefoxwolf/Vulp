@@ -72,47 +72,41 @@ Call it after the view has its final bounds. The view owns and cancels its loadi
 
 ### Asynchronous image placeholders
 
-Configure UIKit placeholders separately with `AsyncImageView.setPlaceholder`.
-The closure returns `CGImage?` asynchronously, so it can use your app's BlurHash renderer:
+`PlaceholderAsset` combines a stable ID with a `Sendable` asynchronous generator
+returning `CGImage?`. Configure it independently of image loading:
 
 ```swift
-imageView.setPlaceholder(id: blurHash) { try await renderBlurHash(blurHash) }
+let placeholder = PlaceholderAsset(id: blurHash) {
+    try await renderBlurHash(blurHash)
+}
+imageView.setPlaceholder(placeholder)
 imageView.loadImage(url: url)
 ```
 
-The closure runs away from the UI actor, alongside the image load. It can also return
-an existing image with `{ placeholderImage }`. A loaded image always takes precedence;
-changing the source invalidates pending placeholder work, and assigning `image` directly
-clears the placeholder setting. Placeholder errors are ignored, and the placeholder remains visible if the image load fails.
-Vulp does not include a BlurHash decoder; supply your own renderer returning `CGImage`.
-Setting the same UIKit request again reuses its in-flight or loaded image and preserves
-its rendered or generating placeholder. Use `setPlaceholder` to explicitly replace
-that provider. The placeholder setting persists across sources; update or clear it with
-`setPlaceholder` when its content should change. It can be configured before or during
-loading, including before awaiting the async asset-loading overload. Configuring it
-while a real image is displayed stores the setting for the next source without replacing
-the real image. Resizing keeps a displayed image visible while loading the new size.
-Leaving the window suspends unfinished placeholder generation; reattachment restarts it. Providers should cooperate
-with task cancellation to stop expensive work promptly.
+The generator runs away from the UI actor. UIKit keeps rendered or generating content
+when the asset ID is unchanged. Change the ID when the generated content changes, or
+call `imageView.setPlaceholder(nil)` to clear the setting. Vulp does not include a
+BlurHash decoder; supply your own renderer returning `CGImage`.
 
-The `async` asset-loading overload is owned by the calling task: temporary detachment
-and reattachment do not invalidate its result. Cancel the calling task to cancel that
-load; replacing the source or assigning `image` still prevents its result from being displayed.
+The asset persists across sources and can be configured before or during loading,
+including before awaiting the async asset-loading overload. A real image always takes
+precedence: configuring an asset while a real image is displayed stores it for the
+next source. Assigning `image` directly clears the placeholder setting.
 
-Use `imageView.setPlaceholder(id: blurHash) { ... }` to update only the placeholder
-while the image is still loading. UIKit keeps the existing provider for the same ID
-and replaces it when the ID changes. The overload without an ID always replaces the
-provider. In the SwiftUI wrapper, set `placeholderID` (for example, to the BlurHash
-string) and change it when the provider changes; the wrapper forwards this identity
-to UIKit. These updates do not restart the image request or replace an already
-displayed real image.
+Setting the same image request again reuses in-flight or loaded content. Resizing
+keeps the displayed real image visible while the new size loads. Leaving the window
+cancels unfinished placeholder generation; reattachment can start it again. Generators
+should cooperate with cancellation to stop expensive work promptly. Placeholder errors
+are ignored, and a rendered placeholder remains visible if the image request fails.
+
+The async asset-loading overload is owned by its calling task. Temporary detachment
+and reattachment do not invalidate its result. Cancel the calling task to cancel the
+load; replacing the source or assigning `image` prevents its result from being displayed.
+
+The SwiftUI wrapper forwards the same asset to UIKit and does not compare IDs itself:
 
 ```swift
-Vulp_SwiftUI_Vulp_UIKit.AsyncImage(
-    url: url,
-    placeholderID: blurHash,
-    placeholder: { try await renderBlurHash(blurHash) }
-)
+Vulp_SwiftUI_Vulp_UIKit.AsyncImage(url: url, placeholder: placeholder)
 ```
 
 ### SwiftUI
