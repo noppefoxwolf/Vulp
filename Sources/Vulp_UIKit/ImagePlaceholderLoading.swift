@@ -6,6 +6,7 @@ import UIKit
 final class ImagePlaceholderLoading {
     private(set) var task: Task<Void, Never>?
     private var generation = UUID()
+    private var didFinish = false
     private var placeholder: (@Sendable () async throws -> CGImage?)?
     private var onImage: (@MainActor (CGImage?) -> Void)?
 
@@ -19,21 +20,33 @@ final class ImagePlaceholderLoading {
     }
 
     func resume() {
-        guard task == nil, let placeholder, let onImage else { return }
+        guard !didFinish, task == nil, let placeholder, let onImage else { return }
         let generation = generation
         task = Task { [weak self] in
             do {
+                try Task.checkCancellation()
                 let image = try await Self.generate(placeholder)
                 try Task.checkCancellation()
                 guard let self, self.generation == generation else { return }
-                self.cancel()
+                self.finish()
                 onImage(image)
             } catch {
                 guard let self, self.generation == generation else { return }
                 // A failed placeholder is not retried on every layout pass.
-                self.cancel()
+                self.finish()
             }
         }
+    }
+
+    private func finish() {
+        task = nil
+        didFinish = true
+    }
+
+    /// Invalidates the previous source's work while retaining the configured provider.
+    func restart() {
+        suspend()
+        didFinish = false
     }
 
     /// Keeps the provider so an interrupted generation can resume on reattachment.
@@ -47,6 +60,7 @@ final class ImagePlaceholderLoading {
         suspend()
         placeholder = nil
         onImage = nil
+        didFinish = false
     }
 
     isolated deinit {

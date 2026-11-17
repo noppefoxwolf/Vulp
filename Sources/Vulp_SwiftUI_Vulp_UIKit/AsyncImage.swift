@@ -121,12 +121,11 @@ public struct AsyncImage: UIViewRepresentable {
         view.loadImage(
             url: url,
             levelOfIntegrity: levelOfIntegrity,
-            prefetchCount: prefetchCount,
-            placeholderID: placeholderID,
-            placeholder: placeholder
+            prefetchCount: prefetchCount
         ) { [weak coordinator] result in
             coordinator?.onCompletion?(result)
         }
+        view.setPlaceholder(id: placeholderID, placeholder)
     }
 
     @MainActor

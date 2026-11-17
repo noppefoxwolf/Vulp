@@ -15,7 +15,6 @@ public final class AsyncImageView: UIView {
     private var loadedCacheIdentifier: String?
     private var currentSourceIdentifier: String?
     var placeholderIdentity: ImagePlaceholderIdentity?
-    var pendingPlaceholder: PendingImagePlaceholder?
     private var lastRequestLayoutKey: RequestLayoutKey?
     private(set) var imageLoadTask: Task<Void, Never>?
     private(set) var imageLoadGeneration = UUID()
@@ -38,6 +37,7 @@ public final class AsyncImageView: UIView {
         get { displayedImage }
         set {
             resetForNewImageSource()
+            hasLoadedImage = newValue != nil
             setDisplayedImage(newValue)
         }
     }
@@ -58,15 +58,10 @@ public final class AsyncImageView: UIView {
     }
 
     /// Loads a request at this view's point bounds and display scale, playing multiple frames when supported.
-    ///
-    /// The optional placeholder is generated concurrently with the image load, away from the UI actor.
-    /// Errors are ignored, and late results cannot replace a loaded image.
     public func loadImage<Request: MediaImageRequestProtocol, Loader: MediaImageLoading>(
         using loader: Loader = MediaImageLoader.default,
         levelOfIntegrity: Double = 1,
         prefetchCount: Int = 3,
-        placeholderID: String? = nil,
-        placeholder: (@Sendable () async throws -> CGImage?)? = nil,
         request: @escaping @MainActor @Sendable (CGSize?, CGFloat) throws -> Request,
         onCompletion: (@MainActor @Sendable (Result<CGImage, any Error>) -> Void)? = nil
     ) {
@@ -77,7 +72,6 @@ public final class AsyncImageView: UIView {
         playbackOptions = options
         lastRequestLayoutKey = nil
         imageCompletionHandler = onCompletion
-        pendingPlaceholder = PendingImagePlaceholder(provider: placeholder, id: placeholderID)
         makeImageOperation = { targetSize, scale in
             do {
                 let imageRequest = try request(targetSize, scale)
@@ -103,7 +97,6 @@ public final class AsyncImageView: UIView {
             invalidateImageRequest()
             currentCacheIdentifier = nil
         }
-        if currentSourceIdentifier == nil { configureUnresolvedPlaceholderIfNeeded() }
         resumePlaceholderIfNeeded()
     }
 
@@ -173,12 +166,36 @@ public final class AsyncImageView: UIView {
         currentCacheIdentifier = nil
         loadedCacheIdentifier = nil
         currentSourceIdentifier = nil
-        pendingPlaceholder = nil
         placeholderIdentity = nil
         lastRequestLayoutKey = nil
         playbackOptions = nil
         hasLoadedImage = false
         sequencePlayback.stop()
+    }
+
+    /// The async overload shares source selection, but its task remains caller-owned.
+    func prepareExplicitImageLoad(sourceIdentifier: String) {
+        invalidateImageRequest()
+        makeImageOperation = nil
+        currentCacheIdentifier = nil
+        lastRequestLayoutKey = nil
+        playbackOptions = nil
+        sequencePlayback.stop()
+        selectImageSource(sourceIdentifier)
+        resumePlaceholderIfNeeded()
+    }
+
+    private func selectImageSource(_ sourceIdentifier: String) {
+        guard currentSourceIdentifier != sourceIdentifier else { return }
+        let isInitialSource = currentSourceIdentifier == nil && !hasLoadedImage
+        if !isInitialSource {
+            placeholderLoading.restart()
+            setDisplayedImage(nil)
+        }
+        hasLoadedImage = false
+        currentSourceIdentifier = sourceIdentifier
+        currentCacheIdentifier = nil
+        loadedCacheIdentifier = nil
     }
 
     private func invalidateImageRequest() {
@@ -212,7 +229,7 @@ public final class AsyncImageView: UIView {
         cacheIdentifier: String,
         notifyCompletion: Bool = true
     ) {
-        placeholderLoading.cancel()
+        placeholderLoading.suspend()
         hasLoadedImage = true
         switch content {
         case .still(let image):
@@ -261,15 +278,7 @@ public final class AsyncImageView: UIView {
         guard layoutKey != lastRequestLayoutKey else { return }
 
         guard let operation = makeImageOperation(targetSize, scale) else { return }
-        let changesSource = currentSourceIdentifier != operation.sourceIdentifier
-        resolvePlaceholderSource(changesSource: changesSource)
-        if changesSource {
-            hasLoadedImage = false
-            currentSourceIdentifier = operation.sourceIdentifier
-            currentCacheIdentifier = nil
-            loadedCacheIdentifier = nil
-        }
-        if hasLoadedImage { placeholderLoading.cancel() }
+        selectImageSource(operation.sourceIdentifier)
         resumePlaceholderIfNeeded()
         guard window != nil else { return }
         lastRequestLayoutKey = layoutKey

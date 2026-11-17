@@ -68,7 +68,8 @@ private func request(_ source: String = "source", size: CGSize = CGSize(width: 4
     let gate = ImageGate()
     let view = AsyncImageView()
     let image = fixtureImage()
-    view.loadImage(url: URL(string: "https://example.com/a")!, placeholder: { await gate.image() })
+    view.loadImage(url: URL(string: "https://example.com/a")!)
+    view.setPlaceholder { await gate.image() }
     await gate.waitForStart()
     let task = view.placeholderLoading.task
     view.displayLoadedContent(.still(image), cacheIdentifier: "loaded")
@@ -83,13 +84,15 @@ private func request(_ source: String = "source", size: CGSize = CGSize(width: 4
     let newGate = ImageGate()
     let view = AsyncImageView()
     let image = fixtureImage()
-    view.loadImage(url: URL(string: "https://example.com/a")!, placeholder: {
+    view.loadImage(url: URL(string: "https://example.com/a")!)
+    view.setPlaceholder {
         #expect(!placeholderRunsOnMainThread())
         return await oldGate.image()
-    })
+    }
     await oldGate.waitForStart()
     let oldTask = view.placeholderLoading.task
-    view.loadImage(url: URL(string: "https://example.com/b")!, placeholder: { await newGate.image() })
+    view.loadImage(url: URL(string: "https://example.com/b")!)
+    view.setPlaceholder { await newGate.image() }
     await newGate.waitForStart()
     let newTask = view.placeholderLoading.task
     await newGate.finish(with: image)
@@ -105,7 +108,8 @@ private func request(_ source: String = "source", size: CGSize = CGSize(width: 4
     let view = AsyncImageView() // Zero bounds keep the network image from loading.
     let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
     window.addSubview(view)
-    view.loadImage(url: URL(string: "https://example.com/a")!, placeholder: { await gate.image() })
+    view.loadImage(url: URL(string: "https://example.com/a")!)
+    view.setPlaceholder { await gate.image() }
     await gate.waitForStart()
     let oldTask = view.placeholderLoading.task
     view.removeFromSuperview()
@@ -274,7 +278,8 @@ private func findImageView(in view: UIView) -> AsyncImageView? {
     window.addSubview(view)
     let completion = AsyncStream<Void>.makeStream()
     var results = completion.stream.makeAsyncIterator()
-    view.loadImage(using: GatedLoader(gate: gate), placeholder: { throw LoaderFailure.missingImage }, request: { _, _ in try request() }, onCompletion: { _ in completion.continuation.yield(()) })
+    view.setPlaceholder { throw LoaderFailure.missingImage }
+    view.loadImage(using: GatedLoader(gate: gate), request: { _, _ in try request() }, onCompletion: { _ in completion.continuation.yield(()) })
     let placeholderTask = view.placeholderLoading.task
     await placeholderTask?.value
     await gate.waitForStart()
@@ -293,7 +298,8 @@ private func findImageView(in view: UIView) -> AsyncImageView? {
     window.addSubview(view)
     let completion = AsyncStream<Void>.makeStream()
     var results = completion.stream.makeAsyncIterator()
-    view.loadImage(using: GatedLoader(gate: imageGate), placeholder: { await placeholderGate.image() }, request: { size, _ in
+    view.setPlaceholder { await placeholderGate.image() }
+    view.loadImage(using: GatedLoader(gate: imageGate), request: { size, _ in
         try request(size!.width < 60 ? "old" : "new", size: size!)
     }, onCompletion: { _ in completion.continuation.yield(()) })
     await imageGate.waitForStart()
@@ -303,6 +309,8 @@ private func findImageView(in view: UIView) -> AsyncImageView? {
     view.setNeedsLayout()
     view.layoutIfNeeded()
     await imageGate.waitForStart(2)
+    await placeholderGate.waitForStart(2)
+    let newPlaceholderTask = view.placeholderLoading.task
     #expect(oldPlaceholderTask?.isCancelled == true)
     await placeholderGate.finish(with: fixtureImage())
     await oldPlaceholderTask?.value
@@ -311,6 +319,8 @@ private func findImageView(in view: UIView) -> AsyncImageView? {
     let image = fixtureImage()
     await imageGate.finish(2, with: image)
     await results.next()
+    await placeholderGate.finish(2, with: fixtureImage())
+    await newPlaceholderTask?.value
     #expect(view.image === image)
 }
 
@@ -322,12 +332,13 @@ private func findImageView(in view: UIView) -> AsyncImageView? {
     window.addSubview(view)
     let placeholder = fixtureImage()
     let loader = GatedLoader(gate: gate)
-    view.loadImage(using: loader, placeholder: { placeholder }, request: { _, _ in try request() })
+    view.setPlaceholder { placeholder }
+    view.loadImage(using: loader, request: { _, _ in try request() })
     let placeholderTask = view.placeholderLoading.task
     await gate.waitForStart()
     await placeholderTask?.value
     #expect(view.image === placeholder)
-    view.loadImage(using: loader, placeholder: { placeholder }, request: { _, _ in try request() })
+    view.loadImage(using: loader, request: { _, _ in try request() })
     #expect(view.image === placeholder)
     #expect(view.placeholderLoading.task == nil)
     let imageTask = view.imageLoadTask
@@ -343,11 +354,12 @@ private func findImageView(in view: UIView) -> AsyncImageView? {
     let window = UIWindow(frame: view.frame)
     window.addSubview(view)
     let loader = GatedLoader(gate: imageGate)
-    view.loadImage(using: loader, placeholder: { await placeholderGate.image() }, request: { _, _ in try request() })
+    view.setPlaceholder { await placeholderGate.image() }
+    view.loadImage(using: loader, request: { _, _ in try request() })
     await imageGate.waitForStart()
     await placeholderGate.waitForStart()
     let originalTask = try #require(view.placeholderLoading.task)
-    view.loadImage(using: loader, placeholder: { nil }, request: { _, _ in try request() })
+    view.loadImage(using: loader, request: { _, _ in try request() })
     #expect(!originalTask.isCancelled)
     #expect(view.placeholderLoading.task == originalTask)
     let replacementTask = view.placeholderLoading.task
@@ -422,15 +434,18 @@ private struct CancellingLoader: MediaImageLoading {
     let window = UIWindow(frame: view.frame)
     window.addSubview(view)
     let loader = GatedLoader(gate: imageGate)
-    view.loadImage(using: loader, placeholderID: "old", placeholder: { await oldGate.image() }, request: { _, _ in try request() })
+    view.setPlaceholder(id: "old") { await oldGate.image() }
+    view.loadImage(using: loader, request: { _, _ in try request() })
     await imageGate.waitForStart()
     await oldGate.waitForStart()
     let imageTask = try #require(view.imageLoadTask)
     let oldTask = try #require(view.placeholderLoading.task)
-    view.loadImage(using: loader, placeholderID: "old", placeholder: { nil }, request: { _, _ in try request() })
+    view.setPlaceholder(id: "old") { nil }
+    view.loadImage(using: loader, request: { _, _ in try request() })
     #expect(view.placeholderLoading.task == oldTask)
     #expect(!oldTask.isCancelled)
-    view.loadImage(using: loader, placeholderID: "new", placeholder: { await newGate.image() }, request: { _, _ in try request() })
+    view.setPlaceholder(id: "new") { await newGate.image() }
+    view.loadImage(using: loader, request: { _, _ in try request() })
     await newGate.waitForStart()
     #expect(oldTask.isCancelled)
     #expect(view.imageLoadTask == imageTask)
@@ -467,5 +482,58 @@ private struct CancellingLoader: MediaImageLoading {
     await gate.finish(with: image)
     await task.value
     #expect(view.image === image)
+}
+
+@MainActor
+@Test(arguments: [true, false])
+func `Placeholder configuration is independent of async image loading`(configureBeforeLoad: Bool) async throws {
+    let gate = ImageGate()
+    let view = AsyncImageView()
+    let placeholder = fixtureImage()
+    if configureBeforeLoad {
+        view.setPlaceholder(id: "placeholder") { placeholder }
+        await view.placeholderLoading.task?.value
+    }
+    let load = Task {
+        try await view.loadImage(asset: DataMediaAsset(data: Data(), uniqueKey: "independent"), using: GatedLoader(gate: gate), targetSize: CGSize(width: 40, height: 40))
+    }
+    await gate.waitForStart()
+    if !configureBeforeLoad {
+        view.setPlaceholder(id: "placeholder") { placeholder }
+        await view.placeholderLoading.task?.value
+    }
+    #expect(view.image === placeholder)
+    let image = fixtureImage()
+    await gate.finish(with: image)
+    try await load.value
+    #expect(view.image === image)
+}
+
+@MainActor
+@Test func `Placeholder configured over a loaded image applies to the next source`() async throws {
+    let gate = ImageGate()
+    let view = AsyncImageView()
+    let loader = GatedLoader(gate: gate)
+    let first = Task {
+        try await view.loadImage(asset: DataMediaAsset(data: Data(), uniqueKey: "first"), using: loader, targetSize: CGSize(width: 40, height: 40))
+    }
+    await gate.waitForStart()
+    let firstImage = fixtureImage()
+    await gate.finish(with: firstImage)
+    try await first.value
+    let placeholder = fixtureImage()
+    view.setPlaceholder(id: "next") { placeholder }
+    #expect(view.image === firstImage)
+    #expect(view.placeholderLoading.task == nil)
+    let second = Task {
+        try await view.loadImage(asset: DataMediaAsset(data: Data(), uniqueKey: "second"), using: loader, targetSize: CGSize(width: 40, height: 40))
+    }
+    await gate.waitForStart(2)
+    await view.placeholderLoading.task?.value
+    #expect(view.image === placeholder)
+    let secondImage = fixtureImage()
+    await gate.finish(2, with: secondImage)
+    try await second.value
+    #expect(view.image === secondImage)
 }
 #endif
