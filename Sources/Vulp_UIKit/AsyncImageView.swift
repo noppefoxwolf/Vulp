@@ -284,7 +284,15 @@ public final class AsyncImageView: UIView {
             setDisplayedImage(image)
             return
         }
-        imageLoading.start(operation.load) { [weak self] result in
+        imageLoading.start({ [weak self] in
+            if let self {
+                self.delegate?.asyncImageViewDidStartLoading(self)
+            } else {
+                throw CancellationError()
+            }
+            try Task.checkCancellation()
+            return try await operation.load()
+        }) { [weak self] result in
             guard let self else { return }
             switch result {
             case .success(let content):

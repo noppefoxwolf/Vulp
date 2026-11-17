@@ -64,6 +64,50 @@ private func request(_ source: String = "source", size: CGSize = CGSize(width: 4
 }
 
 @MainActor
+private final class LoadingBackgroundDelegate: AsyncImageViewDelegate {
+    var events: [String] = []
+
+    func asyncImageViewDidStartLoading(_ imageView: AsyncImageView) {
+        events.append("start")
+        imageView.backgroundColor = .gray
+    }
+
+    func asyncImageView(_ imageView: AsyncImageView, didComplete result: Result<CGImage, any Error>) {
+        events.append("complete")
+        imageView.backgroundColor = .clear
+    }
+}
+
+@MainActor
+@Test func imageViewDelegateControlsLoadingBackground() async throws {
+    for succeeds in [true, false] {
+        let gate = ImageGate()
+        let view = AsyncImageView(frame: CGRect(x: 0, y: 0, width: 40, height: 40))
+        let window = UIWindow(frame: view.frame)
+        let delegate = LoadingBackgroundDelegate()
+        view.delegate = delegate
+        view.loadImage(using: GatedLoader(gate: gate), request: { _, _ in try request() })
+        #expect(delegate.events.isEmpty)
+        window.addSubview(view)
+        await gate.waitForStart()
+        #expect(delegate.events == ["start"])
+        #expect(view.backgroundColor == .gray)
+        // Repeated configuration must not produce a second start for in-flight work.
+        view.loadImage(using: GatedLoader(gate: gate), request: { _, _ in try request() })
+        await gate.finish(with: succeeds ? fixtureImage() : nil)
+        await view.imageLoading.waitForManagedLoad()
+        #expect(delegate.events == ["start", "complete"])
+        #expect(view.backgroundColor == .clear)
+        if succeeds {
+            view.loadImage(using: GatedLoader(gate: gate), request: { _, _ in try request() })
+            await view.imageLoading.waitForManagedLoad()
+            #expect(delegate.events == ["start", "complete"])
+        }
+        withExtendedLifetime(delegate) {}
+    }
+}
+
+@MainActor
 @Test func imageViewDelegateReceivesManagedFailure() async throws {
     let gate = ImageGate()
     let view = AsyncImageView(frame: CGRect(x: 0, y: 0, width: 40, height: 40))

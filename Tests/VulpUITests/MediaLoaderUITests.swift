@@ -310,10 +310,14 @@ import UIKit
 
 @Test @MainActor func swiftUIAsyncImageCoordinatorForwardsCurrentCompletion() async throws {
     let url = URL(string: "about:blank")!
+    let firstStart = AsyncStream<Void>.makeStream()
+    let secondStart = AsyncStream<Void>.makeStream()
     let first = AsyncStream<Result<CGImage, any Error>>.makeStream()
     let second = AsyncStream<Result<CGImage, any Error>>.makeStream()
     let host = UIHostingController(rootView: VulpUI.AsyncImage(
-        url: url, onCompletion: { first.continuation.yield($0) }
+        url: url,
+        onStart: { firstStart.continuation.yield(()) },
+        onCompletion: { first.continuation.yield($0) }
     ).frame(width: 0, height: 0))
     let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 80, height: 60))
     window.addSubview(host.view)
@@ -321,6 +325,9 @@ import UIKit
     let view = try #require(findAsyncImageView(in: host.view))
     let delegate = try #require(view.delegate)
     #expect(delegate is VulpUI.AsyncImage.Coordinator)
+    delegate.asyncImageViewDidStartLoading(view)
+    var firstStarts = firstStart.stream.makeAsyncIterator()
+    #expect(await firstStarts.next() != nil)
     delegate.asyncImageView(view, didComplete: .failure(CancellationError()))
     var firstResults = first.stream.makeAsyncIterator()
     if case .failure(let error) = await firstResults.next() {
@@ -330,11 +337,16 @@ import UIKit
     }
 
     host.rootView = VulpUI.AsyncImage(
-        url: url, onCompletion: { second.continuation.yield($0) }
+        url: url,
+        onStart: { secondStart.continuation.yield(()) },
+        onCompletion: { second.continuation.yield($0) }
     ).frame(width: 0, height: 0)
     host.view.setNeedsLayout()
     host.view.layoutIfNeeded()
     #expect(view.delegate === delegate)
+    delegate.asyncImageViewDidStartLoading(view)
+    var secondStarts = secondStart.stream.makeAsyncIterator()
+    #expect(await secondStarts.next() != nil)
     delegate.asyncImageView(view, didComplete: .failure(CancellationError()))
     var secondResults = second.stream.makeAsyncIterator()
     if case .failure(let error) = await secondResults.next() {

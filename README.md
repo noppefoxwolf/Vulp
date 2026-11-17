@@ -74,7 +74,12 @@ uses its Coordinator as the delegate and forwards results to `onCompletion`.
 ```swift
 @MainActor
 final class ImageObserver: AsyncImageViewDelegate {
+    func asyncImageViewDidStartLoading(_ imageView: AsyncImageView) {
+        imageView.backgroundColor = .secondarySystemBackground
+    }
+
     func asyncImageView(_ imageView: AsyncImageView, didComplete result: Result<CGImage, any Error>) {
+        imageView.backgroundColor = .clear
         // Handle the displayed image or loading error.
     }
 }
@@ -85,7 +90,9 @@ imageView.loadImage(url: url)
 ```
 
 Delegate notifications cover view-managed loads, including the first frame of an
-animated image. Cancellation is silent; explicit `async throws` loads return their
+animated image. `asyncImageViewDidStartLoading(_:)` fires before loading begins;
+reused in-flight or displayed images do not produce another start event. SwiftUI's
+wrapper forwards starts through `onStart`. Cancellation is silent; explicit `async throws` loads return their
 result through the caller's task.
 
 Call it after the view has its final bounds. The view owns and cancels its loading task when a new image is requested or its image is replaced. For full control over request size, caching, and the loader, use the request-builder overload. `MediaImageLoader.default` is preconfigured with URLSession, ImageIO, AVFoundation, resizing, and an in-memory cache.
