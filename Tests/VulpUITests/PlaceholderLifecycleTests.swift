@@ -560,4 +560,34 @@ func `Placeholder configuration is independent of async image loading`(configure
     #expect(displayedImage === secondImage)
     #expect(!loading.hasManagedLoad)
 }
+
+@MainActor
+@Test func `Placeholder configuration while detached waits for reattachment`() async throws {
+    let gate = ImageGate()
+    let view = AsyncImageView()
+    let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+    window.addSubview(view)
+    view.removeFromSuperview()
+    view.setPlaceholder(id: "detached") { await gate.image() }
+    #expect(view.placeholderLoading.task == nil)
+    window.addSubview(view)
+    await gate.waitForStart()
+    let task = view.placeholderLoading.task
+    let image = fixtureImage()
+    await gate.finish(with: image)
+    await task?.value
+    #expect(view.image === image)
+}
+
+@MainActor
+@Test func `Assigning the placeholder image as real content changes its presentation role`() async throws {
+    let image = fixtureImage()
+    let view = AsyncImageView()
+    view.setPlaceholder { image }
+    await view.placeholderLoading.task?.value
+    #expect(view.image === image)
+    view.image = image
+    view.setPlaceholder(nil)
+    #expect(view.image === image)
+}
 #endif

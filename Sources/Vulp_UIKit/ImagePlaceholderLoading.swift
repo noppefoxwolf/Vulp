@@ -4,11 +4,26 @@ import UIKit
 /// Owns placeholder generation and rejects results from superseded loads.
 @MainActor
 final class ImagePlaceholderLoading {
-    private(set) var task: Task<Void, Never>?
+    private enum State {
+        case ready
+        case generating(Task<Void, Never>)
+        case finished
+    }
+
+    private enum Attachment {
+        case active
+        case detached
+    }
+
+    private var state: State = .ready
+    private var attachment: Attachment = .active
     private var generation = UUID()
-    private var didFinish = false
     private var placeholder: (@Sendable () async throws -> CGImage?)?
     private var onImage: (@MainActor (CGImage?) -> Void)?
+
+    var task: Task<Void, Never>? {
+        if case .generating(let task) = state { task } else { nil }
+    }
 
     func configure(
         _ placeholder: (@Sendable () async throws -> CGImage?)?,
@@ -20,47 +35,55 @@ final class ImagePlaceholderLoading {
     }
 
     func resume() {
-        guard !didFinish, task == nil, let placeholder, let onImage else { return }
+        guard case .ready = state, attachment == .active,
+              let placeholder, let onImage else { return }
         let generation = generation
-        task = Task { [weak self] in
+        state = .generating(Task { [weak self] in
             do {
                 try Task.checkCancellation()
                 let image = try await Self.generate(placeholder)
                 try Task.checkCancellation()
                 guard let self, self.generation == generation else { return }
-                self.finish()
+                self.state = .finished
                 onImage(image)
             } catch {
                 guard let self, self.generation == generation else { return }
                 // A failed placeholder is not retried on every layout pass.
-                self.finish()
+                self.state = .finished
             }
-        }
-    }
-
-    private func finish() {
-        task = nil
-        didFinish = true
+        })
     }
 
     /// Invalidates the previous source's work while retaining the configured provider.
     func restart() {
         suspend()
-        didFinish = false
+        state = .ready
     }
 
     /// Keeps the provider so an interrupted generation can resume on reattachment.
     func suspend() {
         generation = UUID()
-        task?.cancel()
-        task = nil
+        if case .generating(let task) = state {
+            task.cancel()
+            state = .ready
+        }
+    }
+
+    func detach() {
+        attachment = .detached
+        suspend()
+    }
+
+    /// Re-enables generation; the view decides whether a placeholder should be displayed.
+    func attach() {
+        attachment = .active
     }
 
     func cancel() {
         suspend()
         placeholder = nil
         onImage = nil
-        didFinish = false
+        state = .ready
     }
 
     isolated deinit {
