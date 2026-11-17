@@ -6,13 +6,15 @@ import UIKit
 @MainActor
 public final class AsyncImageView: UIView {
     private let sequencePlayback = ImageSequencePlayback()
-    private var displayedImage: CGImage?
+    let placeholderLoading = ImagePlaceholderLoading()
+    let imageLoading = ImageContentLoading()
+    private var displayState: DisplayState = .empty
     private var makeImageOperation: (@MainActor @Sendable (CGSize?, CGFloat) -> ImageLoadingOperation?)?
     private var currentCacheIdentifier: String?
     private var loadedCacheIdentifier: String?
     private var currentSourceIdentifier: String?
     private var lastRequestLayoutKey: RequestLayoutKey?
-    private var imageLoadTask: Task<Void, Never>?
+    private var playbackOptions: PlaybackOptions?
     private var imageCompletionHandler: (@MainActor @Sendable (Result<CGImage, any Error>) -> Void)?
 
     /// Controls request-builder loads and intrinsic sizing; sequence loads use their explicit `targetSize` argument.
@@ -28,7 +30,7 @@ public final class AsyncImageView: UIView {
     }
 
     public var image: CGImage? {
-        get { displayedImage }
+        get { displayState.image }
         set {
             resetForNewImageSource()
             setDisplayedImage(newValue)
@@ -58,9 +60,11 @@ public final class AsyncImageView: UIView {
         request: @escaping @MainActor @Sendable (CGSize?, CGFloat) throws -> Request,
         onCompletion: (@MainActor @Sendable (Result<CGImage, any Error>) -> Void)? = nil
     ) {
-        cancelImageLoadTask()
-        sequencePlayback.stop()
-        currentCacheIdentifier = nil
+        let options = PlaybackOptions(levelOfIntegrity: levelOfIntegrity, prefetchCount: prefetchCount)
+        if playbackOptions != options {
+            currentCacheIdentifier = nil
+        }
+        playbackOptions = options
         lastRequestLayoutKey = nil
         imageCompletionHandler = onCompletion
         makeImageOperation = { targetSize, scale in
@@ -83,6 +87,12 @@ public final class AsyncImageView: UIView {
             }
         }
         updateImageIfNeeded()
+        if lastRequestLayoutKey == nil {
+            // Until the builder can identify the request, supersede any previous work.
+            imageLoading.invalidate()
+            currentCacheIdentifier = nil
+        }
+        startPlaceholderIfNeeded()
     }
 
     /// Stops sequence playback while keeping the currently displayed frame.
@@ -91,7 +101,8 @@ public final class AsyncImageView: UIView {
     }
 
     isolated deinit {
-        imageLoadTask?.cancel()
+        imageLoading.invalidate()
+        placeholderLoading.clearAsset()
         sequencePlayback.stop()
     }
 
@@ -126,7 +137,9 @@ public final class AsyncImageView: UIView {
     public override func didMoveToSuperview() {
         super.didMoveToSuperview()
         guard superview != nil, window != nil else { return }
+        placeholderLoading.activityState = .active
         updateImageIfNeeded()
+        startPlaceholderIfNeeded()
     }
 
     public override func didMoveToWindow() {
@@ -136,28 +149,64 @@ public final class AsyncImageView: UIView {
             return
         }
 
+        placeholderLoading.activityState = .active
         updateImageIfNeeded()
+        startPlaceholderIfNeeded()
     }
 
     func resetForNewImageSource() {
-        cancelImageLoadTask()
+        placeholderLoading.clearAsset()
+        imageLoading.invalidate()
         makeImageOperation = nil
         currentCacheIdentifier = nil
         loadedCacheIdentifier = nil
         currentSourceIdentifier = nil
         lastRequestLayoutKey = nil
+        playbackOptions = nil
         sequencePlayback.stop()
     }
 
-    private func cancelImageLoadTask() {
-        imageLoadTask?.cancel()
-        imageLoadTask = nil
+    /// The async overload shares source selection, but its task remains caller-owned.
+    func prepareExplicitImageLoad(sourceIdentifier: String) {
+        makeImageOperation = nil
+        currentCacheIdentifier = nil
+        lastRequestLayoutKey = nil
+        playbackOptions = nil
+        sequencePlayback.stop()
+        selectImageSource(sourceIdentifier)
+        startPlaceholderIfNeeded()
+    }
+
+    private func selectImageSource(_ sourceIdentifier: String) {
+        guard currentSourceIdentifier != sourceIdentifier else { return }
+        let isInitialSource = currentSourceIdentifier == nil && !displayState.isLoadedImage
+        if !isInitialSource {
+            placeholderLoading.resetGeneration()
+            setDisplayedImage(nil)
+        }
+        currentSourceIdentifier = sourceIdentifier
+        currentCacheIdentifier = nil
+        loadedCacheIdentifier = nil
     }
 
     func setDisplayedImage(_ image: CGImage?) {
+        setDisplayState(image.map(DisplayState.image) ?? .empty)
+    }
+
+    func displayPlaceholder(_ image: CGImage?) {
+        guard !displayState.isLoadedImage else { return }
+        setDisplayState(image.map(DisplayState.placeholder) ?? .empty)
+    }
+
+    func startPlaceholderIfNeeded() {
+        guard !displayState.isLoadedImage else { return }
+        placeholderLoading.startIfNeeded()
+    }
+
+    private func setDisplayState(_ state: DisplayState) {
         let previousIntrinsicSize = intrinsicContentSize
-        let contentsChanged = displayedImage !== image
-        displayedImage = image
+        let contentsChanged = displayState.image !== state.image
+        displayState = state
         if contentsChanged {
             updateDisplayedContents()
         }
@@ -175,6 +224,7 @@ public final class AsyncImageView: UIView {
         cacheIdentifier: String,
         notifyCompletion: Bool = true
     ) {
+        placeholderLoading.cancelGeneration()
         switch content {
         case .still(let image):
             loadedCacheIdentifier = cacheIdentifier
@@ -194,7 +244,7 @@ public final class AsyncImageView: UIView {
     private func updateDisplayedContents() {
         CATransaction.begin()
         CATransaction.setDisableActions(true)
-        layer.contents = displayedImage
+        layer.contents = displayState.image
         CATransaction.commit()
     }
 
@@ -206,7 +256,7 @@ public final class AsyncImageView: UIView {
     }
 
     private func updateImageIfNeeded() {
-        guard window != nil, let makeImageOperation else { return }
+        guard let makeImageOperation else { return }
         let targetSize: CGSize?
         let scale: CGFloat
         if sizingMode == .viewBounds {
@@ -222,43 +272,53 @@ public final class AsyncImageView: UIView {
         guard layoutKey != lastRequestLayoutKey else { return }
 
         guard let operation = makeImageOperation(targetSize, scale) else { return }
+        selectImageSource(operation.sourceIdentifier)
+        startPlaceholderIfNeeded()
+        guard window != nil else { return }
         lastRequestLayoutKey = layoutKey
-        if currentSourceIdentifier != operation.sourceIdentifier {
-            currentSourceIdentifier = operation.sourceIdentifier
-            currentCacheIdentifier = nil
-            loadedCacheIdentifier = nil
-            setDisplayedImage(nil)
-        }
         guard operation.cacheIdentifier != currentCacheIdentifier else { return }
 
         currentCacheIdentifier = operation.cacheIdentifier
-        cancelImageLoadTask()
         sequencePlayback.stop()
-        if loadedCacheIdentifier == operation.cacheIdentifier, let displayedImage {
-            setDisplayedImage(displayedImage)
+        if loadedCacheIdentifier == operation.cacheIdentifier, let image = displayState.image {
+            imageLoading.invalidate()
+            setDisplayedImage(image)
             return
         }
-        imageLoadTask = Task { @MainActor [weak self] in
-            do {
-                let image = try await operation.load()
-                try Task.checkCancellation()
-                guard let self,
-                      self.currentCacheIdentifier == operation.cacheIdentifier
-                else {
-                    return
+        imageLoading.start(operation.load) { [weak self] result in
+            guard let self else { return }
+            switch result {
+            case .success(let content):
+                self.displayLoadedContent(content, cacheIdentifier: operation.cacheIdentifier)
+            case .failure(let error):
+                self.currentCacheIdentifier = nil
+                if !(error is CancellationError) {
+                    self.imageCompletionHandler?(.failure(error))
                 }
-                self.displayLoadedContent(image, cacheIdentifier: operation.cacheIdentifier)
-            } catch is CancellationError {
-                return
-            } catch {
-                guard let self,
-                      self.currentCacheIdentifier == operation.cacheIdentifier
-                else {
-                    return
-                }
-                self.imageCompletionHandler?(.failure(error))
             }
         }
+    }
+
+    private enum DisplayState {
+        case empty
+        case placeholder(CGImage)
+        case image(CGImage)
+
+        var image: CGImage? {
+            switch self {
+            case .empty: nil
+            case .placeholder(let image), .image(let image): image
+            }
+        }
+
+        var isLoadedImage: Bool {
+            if case .image = self { true } else { false }
+        }
+    }
+
+    private struct PlaybackOptions: Equatable {
+        let levelOfIntegrity: Double
+        let prefetchCount: Int
     }
 
     private struct RequestLayoutKey: Equatable {
@@ -326,7 +386,8 @@ public final class AsyncImageView: UIView {
     }
 
     private func cancelImageLoadForDetachment() {
-        cancelImageLoadTask()
+        placeholderLoading.activityState = .inactive
+        imageLoading.cancelManagedLoad()
         currentCacheIdentifier = nil
         lastRequestLayoutKey = nil
         sequencePlayback.stop()

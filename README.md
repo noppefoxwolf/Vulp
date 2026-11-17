@@ -70,6 +70,45 @@ imageView.loadImage(url: url)
 
 Call it after the view has its final bounds. The view owns and cancels its loading task when a new image is requested or its image is replaced. For full control over request size, caching, and the loader, use the request-builder overload. `MediaImageLoader.default` is preconfigured with URLSession, ImageIO, AVFoundation, resizing, and an in-memory cache.
 
+### Asynchronous image placeholders
+
+`PlaceholderAsset` combines a stable ID with a `Sendable` asynchronous generator
+returning `CGImage?`. Configure it independently of image loading:
+
+```swift
+let placeholder = PlaceholderAsset(id: blurHash) {
+    try await renderBlurHash(blurHash)
+}
+imageView.setPlaceholder(placeholder)
+imageView.loadImage(url: url)
+```
+
+The generator runs away from the UI actor. UIKit keeps rendered or generating content
+when the asset ID is unchanged. Change the ID when the generated content changes, or
+call `imageView.setPlaceholder(nil)` to clear the setting. Vulp does not include a
+BlurHash decoder; supply your own renderer returning `CGImage`.
+
+The asset persists across sources and can be configured before or during loading,
+including before awaiting the async asset-loading overload. A real image always takes
+precedence: configuring an asset while a real image is displayed stores it for the
+next source. Assigning `image` directly clears the placeholder setting.
+
+Setting the same image request again reuses in-flight or loaded content. Resizing
+keeps the displayed real image visible while the new size loads. Leaving the window
+cancels unfinished placeholder generation; reattachment can start it again. Generators
+should cooperate with cancellation to stop expensive work promptly. Placeholder errors
+are ignored, and a rendered placeholder remains visible if the image request fails.
+
+The async asset-loading overload is owned by its calling task. Temporary detachment
+and reattachment do not invalidate its result. Cancel the calling task to cancel the
+load; replacing the source or assigning `image` prevents its result from being displayed.
+
+The SwiftUI wrapper forwards the same asset to UIKit and does not compare IDs itself:
+
+```swift
+Vulp_SwiftUI_Vulp_UIKit.AsyncImage(url: url, placeholder: placeholder)
+```
+
 ### SwiftUI
 
 ```swift

@@ -565,6 +565,8 @@ private func findAsyncImageView(in view: UIView) -> AsyncImageView? {
 @Test @MainActor func swiftUIImageDoesNotReloadSuccessfulStaticSequenceWhenReappearing() async throws {
     let probe = ImageLoadLifecycleProbe()
     let loader = SuccessfulLoadCountingImageLoader(probe: probe)
+    let completion = AsyncStream<Void>.makeStream()
+    var results = completion.stream.makeAsyncIterator()
     let asset = DataMediaAsset(
         data: Data(base64Encoded:
             "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jZ1sAAAAASUVORK5CYII="
@@ -576,6 +578,7 @@ private func findAsyncImageView(in view: UIView) -> AsyncImageView? {
             asset: asset,
             loader: loader,
             targetSize: CGSize(width: 16, height: 16),
+            onCompletion: { _ in completion.continuation.yield(()) },
             content: { $0.resizable() }
         ) {
             ProgressView()
@@ -587,7 +590,8 @@ private func findAsyncImageView(in view: UIView) -> AsyncImageView? {
     hostingController.view.setNeedsLayout()
     hostingController.view.layoutIfNeeded()
 
-    await probe.waitForCompletionCount(1)
+    // Wait for the view to apply the image, not merely for the loader to return it.
+    await results.next()
     hostingController.view.removeFromSuperview()
     window.addSubview(hostingController.view)
     hostingController.view.setNeedsLayout()

@@ -40,15 +40,19 @@ public extension AsyncImageView {
         prefetchCount: Int = 3
     ) async throws {
         let request = try MediaImageRequest(asset: asset, targetSize: targetSize)
-        resetForNewImageSource()
-        let content = try await Self.loadImageRequest(
-            request,
-            using: loader,
-            levelOfIntegrity: levelOfIntegrity,
-            prefetchCount: prefetchCount
-        )
-        try Task.checkCancellation()
-        displayLoadedContent(content, cacheIdentifier: request.cacheIdentifier, notifyCompletion: false)
+        prepareExplicitImageLoad(sourceIdentifier: asset.uniqueKey)
+        try await imageLoading.load({
+            try await Self.loadImageRequest(
+                request,
+                using: loader,
+                levelOfIntegrity: levelOfIntegrity,
+                prefetchCount: prefetchCount
+            )
+        }, onSuccess: { [weak self] content in
+            self?.displayLoadedContent(content, cacheIdentifier: request.cacheIdentifier, notifyCompletion: false)
+        }, onFinish: { [weak self] in
+            self?.placeholderLoading.cancelGeneration()
+        })
     }
 }
 #endif
