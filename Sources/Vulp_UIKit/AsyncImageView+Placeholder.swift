@@ -16,11 +16,11 @@ extension AsyncImageView {
 
     private func configurePlaceholder(_ placeholder: (@Sendable () async throws -> CGImage?)?, id: String?) {
         placeholderIdentity = ImagePlaceholderIdentity(value: id)
-        placeholderLoading.configure(placeholder) { [weak self] image in
+        placeholderLoading.setProvider(placeholder) { [weak self] image in
             self?.displayPlaceholder(image)
         }
         if placeholder == nil { displayPlaceholder(nil) }
-        resumePlaceholderIfNeeded()
+        startPlaceholderIfNeeded()
     }
 }
 

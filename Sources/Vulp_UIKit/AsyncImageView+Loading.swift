@@ -51,7 +51,7 @@ public extension AsyncImageView {
         }, onSuccess: { [weak self] content in
             self?.displayLoadedContent(content, cacheIdentifier: request.cacheIdentifier, notifyCompletion: false)
         }, onFinish: { [weak self] in
-            self?.placeholderLoading.suspend()
+            self?.placeholderLoading.cancelGeneration()
         })
     }
 }

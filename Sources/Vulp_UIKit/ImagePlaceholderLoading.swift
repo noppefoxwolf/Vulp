@@ -10,32 +10,38 @@ final class ImagePlaceholderLoading {
         case finished
     }
 
-    private enum Attachment {
+    enum ActivityState {
         case active
-        case detached
+        case inactive
     }
 
     private var state: State = .ready
-    private var attachment: Attachment = .active
     private var generation = UUID()
     private var placeholder: (@Sendable () async throws -> CGImage?)?
     private var onImage: (@MainActor (CGImage?) -> Void)?
+
+    /// Inactive generation is cancelled; becoming active does not start work automatically.
+    var activityState: ActivityState = .active {
+        didSet {
+            if activityState == .inactive { cancelGeneration() }
+        }
+    }
 
     var task: Task<Void, Never>? {
         if case .generating(let task) = state { task } else { nil }
     }
 
-    func configure(
+    func setProvider(
         _ placeholder: (@Sendable () async throws -> CGImage?)?,
         onImage: @escaping @MainActor (CGImage?) -> Void
     ) {
-        cancel()
+        clearProvider()
         self.placeholder = placeholder
         self.onImage = onImage
     }
 
-    func resume() {
-        guard case .ready = state, attachment == .active,
+    func startIfNeeded() {
+        guard case .ready = state, activityState == .active,
               let placeholder, let onImage else { return }
         let generation = generation
         state = .generating(Task { [weak self] in
@@ -55,13 +61,13 @@ final class ImagePlaceholderLoading {
     }
 
     /// Invalidates the previous source's work while retaining the configured provider.
-    func restart() {
-        suspend()
+    func resetGeneration() {
+        cancelGeneration()
         state = .ready
     }
 
-    /// Keeps the provider so an interrupted generation can resume on reattachment.
-    func suspend() {
+    /// Cancels in-flight work while preserving the provider and any finished state.
+    func cancelGeneration() {
         generation = UUID()
         if case .generating(let task) = state {
             task.cancel()
@@ -69,18 +75,9 @@ final class ImagePlaceholderLoading {
         }
     }
 
-    func detach() {
-        attachment = .detached
-        suspend()
-    }
-
-    /// Re-enables generation; the view decides whether a placeholder should be displayed.
-    func attach() {
-        attachment = .active
-    }
-
-    func cancel() {
-        suspend()
+    /// Cancels generation and removes the configured provider and delivery callback.
+    func clearProvider() {
+        cancelGeneration()
         placeholder = nil
         onImage = nil
         state = .ready
