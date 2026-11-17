@@ -7,8 +7,7 @@ public extension AsyncImageView {
     func loadImage(
         url: URL,
         levelOfIntegrity: Double = 1,
-        prefetchCount: Int = 3,
-        onCompletion: (@MainActor @Sendable (Result<CGImage, any Error>) -> Void)? = nil
+        prefetchCount: Int = 3
     ) {
         let asset = RemoteMediaAsset(url: url)
         loadImage(
@@ -26,8 +25,7 @@ public extension AsyncImageView {
                 }
                 let requestScale = targetSize == nil ? self.traitCollection.displayScale : scale
                 return try MediaImageRequest(asset: asset, targetSize: pointSize, scale: requestScale)
-            },
-            onCompletion: onCompletion
+            }
         )
     }
 

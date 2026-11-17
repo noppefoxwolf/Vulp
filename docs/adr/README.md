@@ -37,3 +37,4 @@ This directory stores decisions that affect Vulp's architecture and public API.
 - [0024. Select sequence playback from loaded media data](0024-data-driven-sequence-loading.md)
 - [0025. Hide UIKit implementation behind the SwiftUI view](0025-hide-uikit-behind-swiftui-view.md)
 - [0026. Expose SwiftUI representable conformance](0026-expose-swiftui-representable-conformance.md)
+- [0027. Use a delegate for UIKit image load completion](0027-use-uikit-image-view-delegate.md)

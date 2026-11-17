@@ -308,6 +308,54 @@ import UIKit
     }
 }
 
+@Test @MainActor func swiftUIAsyncImageCoordinatorForwardsCurrentCompletion() async throws {
+    let url = URL(string: "about:blank")!
+    let firstStart = AsyncStream<Void>.makeStream()
+    let secondStart = AsyncStream<Void>.makeStream()
+    let first = AsyncStream<Result<CGImage, any Error>>.makeStream()
+    let second = AsyncStream<Result<CGImage, any Error>>.makeStream()
+    let host = UIHostingController(rootView: VulpUI.AsyncImage(
+        url: url,
+        onStart: { firstStart.continuation.yield(()) },
+        onCompletion: { first.continuation.yield($0) }
+    ).frame(width: 0, height: 0))
+    let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 80, height: 60))
+    window.addSubview(host.view)
+    host.view.layoutIfNeeded()
+    let view = try #require(findAsyncImageView(in: host.view))
+    let delegate = try #require(view.delegate)
+    #expect(delegate is VulpUI.AsyncImage.Coordinator)
+    delegate.asyncImageViewDidStartLoading(view)
+    var firstStarts = firstStart.stream.makeAsyncIterator()
+    #expect(await firstStarts.next() != nil)
+    delegate.asyncImageView(view, didComplete: .failure(CancellationError()))
+    var firstResults = first.stream.makeAsyncIterator()
+    if case .failure(let error) = await firstResults.next() {
+        #expect(error is CancellationError)
+    } else {
+        Issue.record("Coordinator should forward failure")
+    }
+
+    host.rootView = VulpUI.AsyncImage(
+        url: url,
+        onStart: { secondStart.continuation.yield(()) },
+        onCompletion: { second.continuation.yield($0) }
+    ).frame(width: 0, height: 0)
+    host.view.setNeedsLayout()
+    host.view.layoutIfNeeded()
+    #expect(view.delegate === delegate)
+    delegate.asyncImageViewDidStartLoading(view)
+    var secondStarts = secondStart.stream.makeAsyncIterator()
+    #expect(await secondStarts.next() != nil)
+    delegate.asyncImageView(view, didComplete: .failure(CancellationError()))
+    var secondResults = second.stream.makeAsyncIterator()
+    if case .failure(let error) = await secondResults.next() {
+        #expect(error is CancellationError)
+    } else {
+        Issue.record("Coordinator should use the updated completion")
+    }
+}
+
 @Test @MainActor func swiftUIAsyncImageUsesProposedViewBounds() {
     let expectedSizes = [
         CGSize(width: 310, height: 175),
@@ -514,15 +562,18 @@ private func findAsyncImageView(in view: UIView) -> AsyncImageView? {
     let view = AsyncImageView(frame: window.bounds)
     window.addSubview(view)
 
-    let result: Result<CGImage, any Error> = await withCheckedContinuation { continuation in
-        view.loadImage(
-            using: loader,
-            request: { _, _ in
-                try MediaImageRequest(asset: asset, targetSize: CGSize(width: 16, height: 16))
-            },
-            onCompletion: { continuation.resume(returning: $0) }
-        )
-    }
+    let completion = AsyncStream<Result<CGImage, any Error>>.makeStream()
+    var results = completion.stream.makeAsyncIterator()
+    let delegate = ImageViewCompletionDelegate { completion.continuation.yield($0) }
+    view.delegate = delegate
+    defer { withExtendedLifetime(delegate) {} }
+    view.loadImage(
+        using: loader,
+        request: { _, _ in
+            try MediaImageRequest(asset: asset, targetSize: CGSize(width: 16, height: 16))
+        }
+    )
+    let result = try #require(await results.next())
 
     #expect(try result.get().width == 16)
     #expect(await probe.indexedFrameRequestCount > 0)
