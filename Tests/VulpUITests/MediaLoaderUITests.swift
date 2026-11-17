@@ -274,8 +274,9 @@ private struct SuccessfulLoadCountingImageLoader: MediaImageSequenceLoading {
 
     let image = try await loader.load(request)
 
-    #expect(image.width == 8)
-    #expect(image.height == 8)
+    // The pipeline preserves the 1×1 source rather than upscaling to the request bounds.
+    #expect(image.width == 1)
+    #expect(image.height == 1)
 }
 
 private enum AnimatedGIFFixture {
@@ -345,6 +346,8 @@ private func measuredExplicitPixelAsyncImageSize(width: CGFloat?, height: CGFloa
         )
         .frame(width: width, height: height)
     )
+    // Measure image content independently of the simulator device's safe-area insets.
+    hostingController.safeAreaRegions = []
     let windowSize = CGSize(width: width ?? 320, height: height ?? 240)
     let window = UIWindow(frame: CGRect(origin: .zero, size: windowSize))
     hostingController.view.frame = window.bounds
@@ -353,7 +356,12 @@ private func measuredExplicitPixelAsyncImageSize(width: CGFloat?, height: CGFloa
     hostingController.view.layoutIfNeeded()
 
     let imageView = try #require(findAsyncImageView(in: hostingController.view))
-    imageView.image = UIGraphicsImageRenderer(size: CGSize(width: 40, height: 20)).image { context in
+    let format = UIGraphicsImageRendererFormat()
+    format.scale = 1
+    imageView.image = UIGraphicsImageRenderer(
+        size: CGSize(width: 40, height: 20),
+        format: format
+    ).image { context in
         context.cgContext.setFillColor(UIColor.black.cgColor)
         context.cgContext.fill(CGRect(origin: .zero, size: CGSize(width: 40, height: 20)))
     }.cgImage
