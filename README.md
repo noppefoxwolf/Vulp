@@ -99,11 +99,11 @@ Call it after the view has its final bounds. The view owns and cancels its loadi
 
 ### Asynchronous image placeholders
 
-`PlaceholderAsset` combines a stable ID with a `Sendable` asynchronous generator
+`ImagePlaceholder` combines a stable ID with a `Sendable` asynchronous generator
 returning `CGImage?`. Configure it independently of image loading:
 
 ```swift
-let placeholder = PlaceholderAsset(id: blurHash) {
+let placeholder = ImagePlaceholder(id: blurHash) {
     try await renderBlurHash(blurHash)
 }
 imageView.setPlaceholder(placeholder)

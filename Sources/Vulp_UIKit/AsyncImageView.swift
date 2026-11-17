@@ -101,7 +101,7 @@ public final class AsyncImageView: UIView {
 
     isolated deinit {
         imageLoading.invalidate()
-        placeholderLoading.clearAsset()
+        placeholderLoading.clearPlaceholder()
         sequencePlayback.stop()
     }
 
@@ -154,7 +154,7 @@ public final class AsyncImageView: UIView {
     }
 
     func resetForNewImageSource() {
-        placeholderLoading.clearAsset()
+        placeholderLoading.clearPlaceholder()
         imageLoading.invalidate()
         makeImageOperation = nil
         currentCacheIdentifier = nil

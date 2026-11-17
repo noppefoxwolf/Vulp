@@ -20,7 +20,7 @@ public struct AsyncImage: UIViewRepresentable {
     public var levelOfIntegrity: Double
     public var prefetchCount: Int
     /// Change the asset ID to replace the placeholder while keeping the same URL.
-    public var placeholder: PlaceholderAsset?
+    public var placeholder: ImagePlaceholder?
     public var onStart: (@MainActor @Sendable () -> Void)?
     public var onCompletion: (@MainActor @Sendable (Result<CGImage, any Error>) -> Void)?
 
@@ -30,7 +30,7 @@ public struct AsyncImage: UIViewRepresentable {
         sizingMode: SizingMode = .viewBounds,
         levelOfIntegrity: Double = 1,
         prefetchCount: Int = 3,
-        placeholder: PlaceholderAsset? = nil,
+        placeholder: ImagePlaceholder? = nil,
         onStart: (@MainActor @Sendable () -> Void)? = nil,
         onCompletion: (@MainActor @Sendable (Result<CGImage, any Error>) -> Void)? = nil
     ) {

@@ -3,7 +3,7 @@ import CoreGraphics
 
 /// A placeholder's stable identity and asynchronous image generator.
 /// Change the ID when the generated content changes.
-public struct PlaceholderAsset: Identifiable, Sendable {
+public struct ImagePlaceholder: Identifiable, Sendable {
     public let id: String
     private let generateImage: @Sendable () async throws -> CGImage?
 

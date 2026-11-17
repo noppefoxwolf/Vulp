@@ -18,7 +18,7 @@ final class ImagePlaceholderLoading {
 
     private var state: State = .ready
     private var generation = UUID()
-    private var asset: PlaceholderAsset?
+    private var placeholder: ImagePlaceholder?
     private var onImage: (@MainActor (CGImage?) -> Void)?
 
     /// Inactive generation is cancelled; becoming active does not start work automatically.
@@ -32,24 +32,24 @@ final class ImagePlaceholderLoading {
         if case .generating(let task) = state { task } else { nil }
     }
 
-    func setAsset(
-        _ asset: PlaceholderAsset?,
+    func setPlaceholder(
+        _ placeholder: ImagePlaceholder?,
         onImage: @escaping @MainActor (CGImage?) -> Void
     ) {
-        guard self.asset?.id != asset?.id else { return }
-        clearAsset()
-        self.asset = asset
+        guard self.placeholder?.id != placeholder?.id else { return }
+        clearPlaceholder()
+        self.placeholder = placeholder
         self.onImage = onImage
     }
 
     func startIfNeeded() {
         guard case .ready = state, activityState == .active,
-              let asset, let onImage else { return }
+              let placeholder, let onImage else { return }
         let generation = generation
         state = .generating(Task { [weak self] in
             do {
                 try Task.checkCancellation()
-                let image = try await asset.image()
+                let image = try await placeholder.image()
                 try Task.checkCancellation()
                 guard let self, self.generation == generation else { return }
                 self.state = .finished
@@ -62,13 +62,13 @@ final class ImagePlaceholderLoading {
         })
     }
 
-    /// Invalidates the previous source's work while retaining the configured asset.
+    /// Invalidates the previous source's work while retaining the configured placeholder.
     func resetGeneration() {
         cancelGeneration()
         state = .ready
     }
 
-    /// Cancels in-flight work while preserving the asset and any finished state.
+    /// Cancels in-flight work while preserving the placeholder and any finished state.
     func cancelGeneration() {
         generation = UUID()
         if case .generating(let task) = state {
@@ -77,10 +77,10 @@ final class ImagePlaceholderLoading {
         }
     }
 
-    /// Cancels generation and removes the configured asset and delivery callback.
-    func clearAsset() {
+    /// Cancels generation and removes the configured placeholder and delivery callback.
+    func clearPlaceholder() {
         cancelGeneration()
-        asset = nil
+        placeholder = nil
         onImage = nil
         state = .ready
     }
