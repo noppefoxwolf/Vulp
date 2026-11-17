@@ -35,8 +35,8 @@ import Testing
             maximumPixelDimension: nil
         )
         Issue.record("Expected invalid image data to be rejected")
-    } catch let error as ImageDecodingError {
-        #expect(error == .invalidData)
+    } catch let error as MediaImageDecodingError {
+        #expect(error == .unsupportedSource)
     } catch {
         Issue.record("Unexpected error: \(error)")
     }
