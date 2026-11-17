@@ -14,6 +14,7 @@ public final class AsyncImageView: UIView {
     private var currentCacheIdentifier: String?
     private var loadedCacheIdentifier: String?
     private var currentSourceIdentifier: String?
+    var placeholderIdentity: ImagePlaceholderIdentity?
     var pendingPlaceholder: PendingImagePlaceholder?
     private var lastRequestLayoutKey: RequestLayoutKey?
     private(set) var imageLoadTask: Task<Void, Never>?
@@ -64,6 +65,7 @@ public final class AsyncImageView: UIView {
         using loader: Loader = MediaImageLoader.default,
         levelOfIntegrity: Double = 1,
         prefetchCount: Int = 3,
+        placeholderID: String? = nil,
         placeholder: (@Sendable () async throws -> CGImage?)? = nil,
         request: @escaping @MainActor @Sendable (CGSize?, CGFloat) throws -> Request,
         onCompletion: (@MainActor @Sendable (Result<CGImage, any Error>) -> Void)? = nil
@@ -75,7 +77,7 @@ public final class AsyncImageView: UIView {
         playbackOptions = options
         lastRequestLayoutKey = nil
         imageCompletionHandler = onCompletion
-        pendingPlaceholder = PendingImagePlaceholder(provider: placeholder)
+        pendingPlaceholder = PendingImagePlaceholder(provider: placeholder, id: placeholderID)
         makeImageOperation = { targetSize, scale in
             do {
                 let imageRequest = try request(targetSize, scale)
@@ -172,6 +174,7 @@ public final class AsyncImageView: UIView {
         loadedCacheIdentifier = nil
         currentSourceIdentifier = nil
         pendingPlaceholder = nil
+        placeholderIdentity = nil
         lastRequestLayoutKey = nil
         playbackOptions = nil
         hasLoadedImage = false

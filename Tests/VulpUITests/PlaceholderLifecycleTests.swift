@@ -412,4 +412,60 @@ private struct CancellingLoader: MediaImageLoading {
     await retryTask.value
     #expect(view.image === image)
 }
+
+@MainActor
+@Test func `UIKit owns placeholder identity without restarting the image request`() async throws {
+    let imageGate = ImageGate()
+    let oldGate = ImageGate()
+    let newGate = ImageGate()
+    let view = AsyncImageView(frame: CGRect(x: 0, y: 0, width: 40, height: 40))
+    let window = UIWindow(frame: view.frame)
+    window.addSubview(view)
+    let loader = GatedLoader(gate: imageGate)
+    view.loadImage(using: loader, placeholderID: "old", placeholder: { await oldGate.image() }, request: { _, _ in try request() })
+    await imageGate.waitForStart()
+    await oldGate.waitForStart()
+    let imageTask = try #require(view.imageLoadTask)
+    let oldTask = try #require(view.placeholderLoading.task)
+    view.loadImage(using: loader, placeholderID: "old", placeholder: { nil }, request: { _, _ in try request() })
+    #expect(view.placeholderLoading.task == oldTask)
+    #expect(!oldTask.isCancelled)
+    view.loadImage(using: loader, placeholderID: "new", placeholder: { await newGate.image() }, request: { _, _ in try request() })
+    await newGate.waitForStart()
+    #expect(oldTask.isCancelled)
+    #expect(view.imageLoadTask == imageTask)
+    let placeholderTask = view.placeholderLoading.task
+    let placeholder = fixtureImage()
+    await newGate.finish(with: placeholder)
+    await placeholderTask?.value
+    await oldGate.finish(with: fixtureImage())
+    await oldTask.value
+    #expect(view.image === placeholder)
+    await imageGate.finish(with: fixtureImage())
+    await imageTask.value
+}
+
+@MainActor
+@Test func `SwiftUI forwards repeated updates without replacing the same placeholder`() async throws {
+    let gate = ImageGate()
+    let url = URL(string: "https://example.com/a")!
+    let host = UIHostingController(rootView: VulpUI.AsyncImage(url: url, placeholderID: "a", placeholder: { await gate.image() }).frame(width: 0, height: 0))
+    let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+    window.addSubview(host.view)
+    host.view.layoutIfNeeded()
+    let view = try #require(findImageView(in: host.view))
+    await gate.waitForStart()
+    let task = try #require(view.placeholderLoading.task)
+    let generation = view.imageLoadGeneration
+    host.rootView = VulpUI.AsyncImage(url: url, contentMode: .fill, placeholderID: "a", placeholder: { nil }).frame(width: 0, height: 0)
+    host.view.setNeedsLayout()
+    host.view.layoutIfNeeded()
+    #expect(view.contentMode == .scaleAspectFill)
+    #expect(view.imageLoadGeneration == generation)
+    #expect(view.placeholderLoading.task == task)
+    let image = fixtureImage()
+    await gate.finish(with: image)
+    await task.value
+    #expect(view.image === image)
+}
 #endif

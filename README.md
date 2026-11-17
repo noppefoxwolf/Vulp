@@ -79,6 +79,7 @@ using your app's BlurHash renderer:
 ```swift
 imageView.loadImage(
     url: url,
+    placeholderID: blurHash,
     placeholder: { try await renderBlurHash(blurHash) }
 )
 ```
@@ -98,10 +99,13 @@ The `async` asset-loading overload is owned by the calling task: temporary detac
 and reattachment do not invalidate its result. Cancel the calling task to cancel that
 load; replacing the source or assigning `image` still prevents its result from being displayed.
 
-Use `imageView.setPlaceholder { ... }` to update only the placeholder while the image
-is still loading. In the SwiftUI wrapper, set `placeholderID` (for example, to the
-BlurHash string) and change it when the provider changes. This updates the placeholder
-without restarting the image request. Updates are ignored once a real image is displayed.
+Use `imageView.setPlaceholder(id: blurHash) { ... }` to update only the placeholder
+while the image is still loading. UIKit keeps the existing provider for the same ID
+and replaces it when the ID changes. The overload without an ID always replaces the
+provider. In the SwiftUI wrapper, set `placeholderID` (for example, to the BlurHash
+string) and change it when the provider changes; the wrapper forwards this identity
+to UIKit. These updates do not restart the image request and are ignored once a real
+image is displayed.
 
 ```swift
 Vulp_SwiftUI_Vulp_UIKit.AsyncImage(

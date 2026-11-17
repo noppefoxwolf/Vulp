@@ -111,14 +111,10 @@ public struct AsyncImage: UIViewRepresentable {
                 || coordinator.levelOfIntegrity != levelOfIntegrity
                 || coordinator.prefetchCount != prefetchCount
         else {
-            if coordinator.placeholderID != placeholderID {
-                coordinator.placeholderID = placeholderID
-                view.setPlaceholder(placeholder)
-            }
+            view.setPlaceholder(id: placeholderID, placeholder)
             return
         }
 
-        coordinator.placeholderID = placeholderID
         coordinator.url = url
         coordinator.levelOfIntegrity = levelOfIntegrity
         coordinator.prefetchCount = prefetchCount
@@ -126,6 +122,7 @@ public struct AsyncImage: UIViewRepresentable {
             url: url,
             levelOfIntegrity: levelOfIntegrity,
             prefetchCount: prefetchCount,
+            placeholderID: placeholderID,
             placeholder: placeholder
         ) { [weak coordinator] result in
             coordinator?.onCompletion?(result)
@@ -134,7 +131,6 @@ public struct AsyncImage: UIViewRepresentable {
 
     @MainActor
     public final class Coordinator {
-        fileprivate var placeholderID: String?
         fileprivate var url: URL?
         fileprivate var levelOfIntegrity: Double?
         fileprivate var prefetchCount: Int?
