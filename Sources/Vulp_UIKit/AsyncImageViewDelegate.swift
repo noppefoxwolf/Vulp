@@ -12,8 +12,4 @@ public protocol AsyncImageViewDelegate: AnyObject {
     /// Cancellation and caller-owned `async throws` loads do not send this notification.
     func asyncImageView(_ imageView: AsyncImageView, didComplete result: Result<CGImage, any Error>)
 }
-
-public extension AsyncImageViewDelegate {
-    func asyncImageViewDidStartLoading(_ imageView: AsyncImageView) {}
-}
 #endif

@@ -69,6 +69,8 @@ final class ImageViewCompletionDelegate: AsyncImageViewDelegate {
         self.completion = completion
     }
 
+    func asyncImageViewDidStartLoading(_ imageView: AsyncImageView) {}
+
     func asyncImageView(_ imageView: AsyncImageView, didComplete result: Result<CGImage, any Error>) {
         completion(result)
     }
