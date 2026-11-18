@@ -12,6 +12,7 @@
 
 ## Swift protocols
 
+- Use protocol requirements or generic constraints to select capabilities. Avoid `as?` for application-level type dispatch, as specified in [ADR 0001](docs/adr/0001-swift-concurrency-and-api-design.md). Keep any required Foundation type conversions inside the adapter that handles the platform API.
 - For new protocol requirements, avoid placeholder default implementations that return `nil` or do nothing. Have conforming types explicitly implement the requirement.
 
 ## Swift Playgrounds example
