@@ -44,6 +44,9 @@ private enum AnimatedGIFFixture {
 }
 
 private actor RecordingAssetDownloader: AssetDataDownloader {
+    @concurrent
+    func downloadFile(from url: URL) async throws -> URL? { nil }
+
     private(set) var requestCount = 0
     let data: Data
 

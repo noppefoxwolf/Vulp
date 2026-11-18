@@ -8,11 +8,6 @@ public protocol AssetDataDownloader: Sendable {
     func downloadFile(from url: URL) async throws -> URL?
 }
 
-public extension AssetDataDownloader {
-    @concurrent
-    func downloadFile(from url: URL) async throws -> URL? { nil }
-}
-
 public enum AssetDownloadError: Error, Equatable {
     case unsupportedAsset
     case invalidResponse

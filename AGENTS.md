@@ -10,6 +10,10 @@
 - Before the first major release, public API backward compatibility is not required; deliberate API changes are allowed. Follow [ADR 0005](docs/adr/0005-api-compatibility-before-major-release.md), which leaves the post-major compatibility policy open for a separate decision.
 - For animated image sequences, follow [ADR 0004](docs/adr/0004-image-sequence-frame-loading.md): download the encoded source once, select frames through decoding options, key the decoded image cache by frame index, and keep playback in the shared image view in UI targets. Write behavior tests before implementation and consider the memory cost of preloading every frame.
 
+## Swift protocols
+
+- For new protocol requirements, avoid placeholder default implementations that return `nil` or do nothing. Have conforming types explicitly implement the requirement.
+
 ## Swift Playgrounds example
 
 - `Example.swiftpm` uses `AppleProductTypes`, so `swift build` cannot load its package manifest. Build it with Xcode instead.
