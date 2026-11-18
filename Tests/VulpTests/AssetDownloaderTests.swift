@@ -1,5 +1,5 @@
 import Foundation
-import Vulp
+@testable import Vulp
 import Testing
 
 private final class StubURLProtocol: URLProtocol {
@@ -23,7 +23,9 @@ private final class StubURLProtocol: URLProtocol {
         else { return }
 
         client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
-        client?.urlProtocol(self, didLoad: Data("asset bytes".utf8))
+        let body = url.deletingLastPathComponent().lastPathComponent == "image"
+            ? TestImageData.png : Data("asset bytes".utf8)
+        client?.urlProtocol(self, didLoad: body)
         client?.urlProtocolDidFinishLoading(self)
     }
 
@@ -94,4 +96,42 @@ private struct OpaqueDataAsset: MediaAsset {
     } catch {
         Issue.record("Unexpected error: \(error)")
     }
+}
+
+@Test func defaultAssetDataDownloaderDownloadsResponseToFile() async throws {
+    let url = URL(string: "https://example.com/200")!
+    let downloader = DefaultAssetDataDownloader(session: makeStubbedURLSession())
+    let file = try await downloader.downloadFile(from: url)
+    defer { try? FileManager.default.removeItem(at: file) }
+
+    #expect(try Data(contentsOf: file) == Data("asset bytes".utf8))
+}
+
+@Test func defaultAssetDataDownloaderRejectsOversizedDownloadFile() async {
+    let url = URL(string: "https://example.com/200")!
+    let downloader = DefaultAssetDataDownloader(session: makeStubbedURLSession(), maximumDownloadSize: 1)
+
+    await #expect(throws: AssetDownloadError.exceedsMaximumSize(limit: 1)) {
+        try await downloader.downloadFile(from: url)
+    }
+}
+
+@Test func imageLoaderDecodesRemoteDownloadFromDiskCache() async throws {
+    let directory = FileManager.default.temporaryDirectory
+        .appendingPathComponent("VulpTests-\(UUID().uuidString)", isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let dataCache = DiskAssetDataCache(directory: directory)
+    let loader = DefaultMediaImageLoader(
+        downloader: DefaultAssetDataDownloader(session: makeStubbedURLSession()),
+        decoders: [ImageIOImageDecoder()],
+        processor: ResizeImageProcessor(),
+        cache: InMemoryImageCache(),
+        dataCache: dataCache
+    )
+    let asset = RemoteMediaAsset(url: URL(string: "https://example.com/image/200")!)
+    let request = try MediaImageRequest(asset: asset, targetSize: .zero)
+    _ = try await loader.load(request)
+
+    let cached = try #require(await dataCache.fileURL(forKey: asset.uniqueKey))
+    #expect(try Data(contentsOf: cached) == TestImageData.png)
 }

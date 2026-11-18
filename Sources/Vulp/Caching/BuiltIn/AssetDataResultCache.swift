@@ -26,6 +26,13 @@ actor AssetDataResultCache {
         return url
     }
 
+    func moveFile(at source: URL, forKey key: String) async -> URL? {
+        guard let diskCache = dataCache as? DiskAssetDataCache else { return nil }
+        let url = await diskCache.moveFile(at: source, forKey: key)
+        failures.removeValue(forKey: key)
+        return url
+    }
+
     func insertFailure(_ error: any Error, forKey key: String) {
         failures[key] = error
     }

@@ -20,7 +20,8 @@ public struct DefaultMediaImageLoader: MediaImageSequenceLoading {
     private let cache: any ImageCache
     private let assetDataResultCache: AssetDataResultCache
     private let fetchDeduper = TaskDeduper<String, MediaImage>()
-    private let assetDataFetchDeduper = TaskDeduper<String, Data>()
+    private let sourceFileDeduper = TaskDeduper<String, AssetSourceFile>()
+    private let usesDiskDataCache: Bool
 
     /// Removes all decoded images and encoded source data stored by this loader.
     public func clearCache() async {
@@ -37,6 +38,7 @@ public struct DefaultMediaImageLoader: MediaImageSequenceLoading {
         dataCache: any AssetDataCache = DiskAssetDataCache()
     ) {
         self.downloader = downloader
+        self.usesDiskDataCache = dataCache is DiskAssetDataCache
         self.decoders = decoders
         self.processor = processor
         self.cache = cache
@@ -60,9 +62,7 @@ public struct DefaultMediaImageLoader: MediaImageSequenceLoading {
     ) -> Task<Void, Never> {
         let task = Task(priority: priority) { [self] in
             do {
-                if await assetDataResultCache.fileURL(forKey: asset.uniqueKey) == nil {
-                    _ = try await data(for: asset, priority: priority)
-                }
+                _ = try await sourceFile(for: asset, priority: priority)
             } catch is CancellationError {
                 // Cancellation is expected when a prefetched item leaves the
                 // collection's visible prefetch window.
@@ -111,10 +111,10 @@ public struct DefaultMediaImageLoader: MediaImageSequenceLoading {
         let usedFallback: Bool
         do {
             try Task.checkCancellation()
-            let (sourceURL, isTemporary) = try await sourceFileURL(for: asset, priority: priority)
-            defer {
-                if isTemporary { try? FileManager.default.removeItem(at: sourceURL) }
-            }
+            let source = try await sourceFile(for: asset, priority: priority)
+            defer { withExtendedLifetime(source) {} }
+            try Task.checkCancellation()
+            let sourceURL = source.url
             let sourceDecoders = await decoders(for: sourceURL)
             guard !sourceDecoders.isEmpty else {
                 throw MediaImageDecodingError.unsupportedSource
@@ -157,20 +157,43 @@ public struct DefaultMediaImageLoader: MediaImageSequenceLoading {
         throw MediaImageDecodingError.unsupportedSource
     }
 
-    private func data(
+    @concurrent
+    private func sourceFile(
         for asset: any MediaAsset,
-        priority: TaskPriority = .userInitiated
-    ) async throws -> Data {
+        priority: TaskPriority
+    ) async throws -> AssetSourceFile {
+        if let cachedURL = await assetDataResultCache.fileURL(forKey: asset.uniqueKey) {
+            return AssetSourceFile(url: cachedURL)
+        }
         if let error = await assetDataResultCache.failure(forKey: asset.uniqueKey) {
             guard shouldRetry(after: error) else { throw error }
             await assetDataResultCache.removeFailure(forKey: asset.uniqueKey)
         }
 
-        return try await assetDataFetchDeduper.load(forKey: asset.uniqueKey, priority: priority) { [self] in
+        return try await sourceFileDeduper.load(forKey: asset.uniqueKey, priority: priority) { [self] in
             do {
-                let downloaded = try await asset.loadData(using: downloader)
-                _ = await assetDataResultCache.insert(downloaded, forKey: asset.uniqueKey)
-                return downloaded
+                if let cachedURL = await assetDataResultCache.fileURL(forKey: asset.uniqueKey) {
+                    return AssetSourceFile(url: cachedURL)
+                }
+                try Task.checkCancellation()
+                if usesDiskDataCache, let remote = asset as? RemoteMediaAsset,
+                   let downloader = downloader as? DefaultAssetDataDownloader {
+                    let downloaded = try await downloader.downloadFile(from: remote.url)
+                    if let cached = await assetDataResultCache.moveFile(at: downloaded, forKey: asset.uniqueKey) {
+                        return AssetSourceFile(url: cached)
+                    }
+                    return AssetSourceFile(url: downloaded, isTemporary: true)
+                }
+
+                let data = try await asset.loadData(using: downloader)
+                if let cached = await assetDataResultCache.insert(data, forKey: asset.uniqueKey) {
+                    return AssetSourceFile(url: cached)
+                }
+
+                let url = FileManager.default.temporaryDirectory
+                    .appendingPathComponent("Vulp-\(UUID().uuidString)", isDirectory: false)
+                try data.write(to: url, options: .atomic)
+                return AssetSourceFile(url: url, isTemporary: true)
             } catch {
                 if !isCancellation(error) {
                     await assetDataResultCache.insertFailure(error, forKey: asset.uniqueKey)
@@ -178,26 +201,6 @@ public struct DefaultMediaImageLoader: MediaImageSequenceLoading {
                 throw error
             }
         }
-    }
-
-    @concurrent
-    private func sourceFileURL(
-        for asset: any MediaAsset,
-        priority: TaskPriority
-    ) async throws -> (URL, isTemporary: Bool) {
-        if let cachedURL = await assetDataResultCache.fileURL(forKey: asset.uniqueKey) {
-            return (cachedURL, false)
-        }
-
-        let data = try await data(for: asset, priority: priority)
-        if let cachedURL = await assetDataResultCache.fileURL(forKey: asset.uniqueKey) {
-            return (cachedURL, false)
-        }
-
-        let url = FileManager.default.temporaryDirectory
-            .appendingPathComponent("Vulp-\(UUID().uuidString)", isDirectory: false)
-        try data.write(to: url, options: .atomic)
-        return (url, true)
     }
 
     private func shouldRetry(after error: Error) -> Bool {
@@ -241,10 +244,10 @@ public struct DefaultMediaImageLoader: MediaImageSequenceLoading {
 extension DefaultMediaImageLoader {
     @concurrent
     public func loadSequence(from asset: any MediaAsset) async throws -> ImageSequence {
-        let (sourceURL, isTemporary) = try await sourceFileURL(for: asset, priority: .userInitiated)
-        defer {
-            if isTemporary { try? FileManager.default.removeItem(at: sourceURL) }
-        }
+        let source = try await sourceFile(for: asset, priority: .userInitiated)
+        defer { withExtendedLifetime(source) {} }
+        try Task.checkCancellation()
+        let sourceURL = source.url
         let sourceData = try Data(contentsOf: sourceURL)
         try Task.checkCancellation()
         guard let sequenceCapableDecoder = await sequenceCapableDecoder(for: sourceURL, data: sourceData) else {
@@ -253,5 +256,20 @@ extension DefaultMediaImageLoader {
         let frameDurations = try await sequenceCapableDecoder.frameDurations(in: sourceData)
         try Task.checkCancellation()
         return ImageSequence(identifier: asset.uniqueKey, data: sourceData, frameDurations: frameDurations)
+    }
+}
+
+/// Keeps uncached download files alive until the last concurrent reader finishes.
+private final class AssetSourceFile: Sendable {
+    let url: URL
+    private let isTemporary: Bool
+
+    init(url: URL, isTemporary: Bool = false) {
+        self.url = url
+        self.isTemporary = isTemporary
+    }
+
+    deinit {
+        if isTemporary { try? FileManager.default.removeItem(at: url) }
     }
 }

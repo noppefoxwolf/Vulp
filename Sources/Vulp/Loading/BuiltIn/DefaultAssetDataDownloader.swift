@@ -1,4 +1,5 @@
 import Foundation
+import Synchronization
 
 #if canImport(FoundationNetworking)
 import FoundationNetworking
@@ -47,4 +48,68 @@ public struct DefaultAssetDataDownloader: AssetDataDownloader {
         }
         return data
     }
+
+    /// Returns a caller-owned download file for the disk-backed image loader.
+    @concurrent
+    func downloadFile(from url: URL) async throws -> URL {
+        let limit = DownloadFileSizeLimit(maximumSize: maximumDownloadSize)
+        let (fileURL, response): (URL, URLResponse)
+        do {
+            (fileURL, response) = try await session.download(from: url, delegate: limit)
+        } catch {
+            if limit.exceeded { throw AssetDownloadError.exceedsMaximumSize(limit: maximumDownloadSize) }
+            throw error
+        }
+
+        do {
+            guard let response = response as? HTTPURLResponse else {
+                throw AssetDownloadError.invalidResponse
+            }
+            guard (200..<300).contains(response.statusCode) else {
+                throw AssetDownloadError.unacceptableStatusCode(response.statusCode)
+            }
+            let size = try fileURL.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0
+            guard !limit.exceeded, size <= maximumDownloadSize,
+                  response.expectedContentLength <= Int64(maximumDownloadSize) else {
+                throw AssetDownloadError.exceedsMaximumSize(limit: maximumDownloadSize)
+            }
+            return fileURL
+        } catch {
+            try? FileManager.default.removeItem(at: fileURL)
+            throw error
+        }
+    }
+}
+
+private final class DownloadFileSizeLimit: NSObject, URLSessionDownloadDelegate {
+    private let maximumSize: Int
+    private let exceededLimit = Mutex(false)
+
+    init(maximumSize: Int) {
+        self.maximumSize = maximumSize
+    }
+
+    var exceeded: Bool {
+        exceededLimit.withLock { $0 }
+    }
+
+    func urlSession(
+        _ session: URLSession,
+        downloadTask: URLSessionDownloadTask,
+        didWriteData bytesWritten: Int64,
+        totalBytesWritten: Int64,
+        totalBytesExpectedToWrite: Int64
+    ) {
+        guard let response = downloadTask.response as? HTTPURLResponse,
+              (200..<300).contains(response.statusCode),
+              totalBytesWritten > maximumSize || totalBytesExpectedToWrite > maximumSize else { return }
+        exceededLimit.withLock { $0 = true }
+        downloadTask.cancel()
+    }
+
+    func urlSession(
+        _ session: URLSession,
+        downloadTask: URLSessionDownloadTask,
+        didFinishDownloadingTo location: URL
+    ) {}
 }

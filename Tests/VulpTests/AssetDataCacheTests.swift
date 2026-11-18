@@ -1,5 +1,5 @@
 import Foundation
-import Vulp
+@testable import Vulp
 import Testing
 
 @Test func diskAssetDataCachePersistsDataAcrossInstances() async throws {
@@ -50,4 +50,22 @@ import Testing
 
     #expect(await firstDownloader.callCount == 1)
     #expect(await secondDownloader.callCount == 0)
+}
+
+@Test func diskAssetDataCacheMovesFileAndReplacesExistingEntry() async throws {
+    let directory = FileManager.default.temporaryDirectory
+        .appendingPathComponent("VulpTests-\(UUID().uuidString)", isDirectory: true)
+    let source = directory.appendingPathComponent("download")
+    defer { try? FileManager.default.removeItem(at: directory) }
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    let cache = DiskAssetDataCache(directory: directory.appendingPathComponent("cache"))
+    let data = TestImageData.png
+    let existing = await cache.insert(Data([0]), forKey: "asset")
+    try data.write(to: source)
+
+    let moved = try #require(await cache.moveFile(at: source, forKey: "asset"))
+
+    #expect(moved == existing)
+    #expect(!FileManager.default.fileExists(atPath: source.path))
+    #expect(try Data(contentsOf: moved) == data)
 }

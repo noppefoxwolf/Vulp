@@ -1,4 +1,5 @@
 import CryptoKit
+import Darwin
 import Foundation
 
 /// A disk cache for encoded asset sources with idle-age and total-size limits.
@@ -42,7 +43,27 @@ public actor DiskAssetDataCache: AssetDataCache {
     }
 
     public func insert(_ data: Data, forKey key: String) async -> URL? {
-        guard maxSizeBytes > 0, data.count <= maxSizeBytes else { return nil }
+        await storeFile(size: data.count, forKey: key) { destination in
+            await self.writeCachedAssetData(data, to: destination)
+        }
+    }
+
+    /// Consumes the source on success. A failed rename leaves it available to the caller.
+    @concurrent
+    func moveFile(at source: URL, forKey key: String) async -> URL? {
+        guard maxAge > 0, let size = try? source.resourceValues(forKeys: [.fileSizeKey]).fileSize else { return nil }
+        return await storeFile(size: size, forKey: key, preserveInsertedFile: true) { destination in
+            await self.moveCachedAssetFile(source, to: destination)
+        }
+    }
+
+    private func storeFile(
+        size: Int,
+        forKey key: String,
+        preserveInsertedFile: Bool = false,
+        write: (URL) async -> (succeeded: Bool, previousSize: Int)
+    ) async -> URL? {
+        guard maxSizeBytes > 0, size <= maxSizeBytes else { return nil }
         await writeGate.acquire()
         let directory = self.directory
         let destination = cacheFileURL(forKey: key)
@@ -52,6 +73,7 @@ public actor DiskAssetDataCache: AssetDataCache {
 
         let directoryReady = await directory.createDirectoryIfNeeded()
 
+        var stored = false
         if directoryReady {
             if currentSizeBytes == nil || shouldPruneExpiredFiles(at: now) {
                 currentSizeBytes = await pruneCachedAssetData(
@@ -65,11 +87,12 @@ public actor DiskAssetDataCache: AssetDataCache {
                 }
             }
 
-            let result = await writeCachedAssetData(data, to: destination)
+            let result = await write(destination)
+            stored = result.succeeded
 
             if result.succeeded {
                 if let currentSizeBytes {
-                    self.currentSizeBytes = max(0, currentSizeBytes - result.previousSize) + data.count
+                    self.currentSizeBytes = max(0, currentSizeBytes - result.previousSize) + size
                 }
 
                 // Scan all entries only when the tracked total exceeds the configured limit.
@@ -78,7 +101,8 @@ public actor DiskAssetDataCache: AssetDataCache {
                         in: directory,
                         maxSizeBytes: maxSizeBytes,
                         maxAge: maxAge,
-                        at: now
+                        at: now,
+                        preserving: preserveInsertedFile ? destination : nil
                     )
                     if currentSizeBytes != nil {
                         lastPrunedAt = now
@@ -87,6 +111,7 @@ public actor DiskAssetDataCache: AssetDataCache {
             }
         }
         await writeGate.release()
+        if preserveInsertedFile { return stored ? destination : nil }
         return await fileURL(forKey: key)
     }
 
@@ -161,6 +186,19 @@ private extension DiskAssetDataCache {
     }
 
     @concurrent
+    func moveCachedAssetFile(_ source: URL, to destination: URL) async -> (succeeded: Bool, previousSize: Int) {
+        let fileManager = FileManager.default
+        let previousSize = (try? fileManager.attributesOfItem(atPath: destination.path)[.size] as? Int) ?? 0
+        do {
+            try fileManager.setAttributes([.modificationDate: Date()], ofItemAtPath: source.path)
+        } catch {
+            return (false, 0)
+        }
+        let succeeded = rename(source.path, destination.path) == 0
+        return (succeeded, previousSize)
+    }
+
+    @concurrent
     func removeCachedAssetData(at url: URL) async -> (succeeded: Bool, size: Int) {
         let fileManager = FileManager.default
         let size = (try? fileManager.attributesOfItem(atPath: url.path)[.size] as? Int) ?? 0
@@ -177,7 +215,8 @@ private extension DiskAssetDataCache {
         in directory: URL,
         maxSizeBytes: Int,
         maxAge: TimeInterval,
-        at now: Date
+        at now: Date,
+        preserving preservedURL: URL? = nil
     ) async -> Int? {
         let fileManager = FileManager.default
         guard let files = try? fileManager.contentsOfDirectory(
@@ -194,8 +233,8 @@ private extension DiskAssetDataCache {
             return (url, date, size)
         }.sorted { $0.date > $1.date }
 
-        var totalSize = 0
-        for entry in entries {
+        var totalSize = entries.first { $0.url == preservedURL }?.size ?? 0
+        for entry in entries where entry.url != preservedURL {
             if now.timeIntervalSince(entry.date) > maxAge || entry.size > maxSizeBytes - totalSize {
                 try? fileManager.removeItem(at: entry.url)
             } else {
