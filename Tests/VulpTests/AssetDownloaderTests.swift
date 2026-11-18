@@ -1,5 +1,5 @@
 import Foundation
-@testable import Vulp
+import Vulp
 import Testing
 
 private final class StubURLProtocol: URLProtocol {
@@ -101,7 +101,7 @@ private struct OpaqueDataAsset: MediaAsset {
 @Test func defaultAssetDataDownloaderDownloadsResponseToFile() async throws {
     let url = URL(string: "https://example.com/200")!
     let downloader = DefaultAssetDataDownloader(session: makeStubbedURLSession())
-    let file = try await downloader.downloadFile(from: url)
+    let file = try #require(try await downloader.downloadFile(from: url))
     defer { try? FileManager.default.removeItem(at: file) }
 
     #expect(try Data(contentsOf: file) == Data("asset bytes".utf8))
@@ -134,4 +134,13 @@ private struct OpaqueDataAsset: MediaAsset {
 
     let cached = try #require(await dataCache.fileURL(forKey: asset.uniqueKey))
     #expect(try Data(contentsOf: cached) == TestImageData.png)
+}
+
+@Test func remoteAssetUsesDownloaderFileCapabilityThroughProtocols() async throws {
+    let asset: any MediaAsset = RemoteMediaAsset(url: URL(string: "https://example.com/200")!)
+    let downloader: any AssetDataDownloader = DefaultAssetDataDownloader(session: makeStubbedURLSession())
+
+    let file = try #require(try await asset.loadFile(using: downloader))
+    defer { try? FileManager.default.removeItem(at: file) }
+    #expect(try Data(contentsOf: file) == Data("asset bytes".utf8))
 }

@@ -17,6 +17,11 @@ public struct RemoteMediaAsset: MediaAsset {
     }
 
     @concurrent
+    public func loadFile(using downloader: any AssetDataDownloader) async throws -> URL? {
+        try await downloader.downloadFile(from: url)
+    }
+
+    @concurrent
     public func loadData(using downloader: any AssetDataDownloader) async throws -> Data {
         try await downloader.download(from: url)
     }

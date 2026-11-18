@@ -1,5 +1,5 @@
 import Foundation
-@testable import Vulp
+import Vulp
 import Testing
 
 @Test func diskAssetDataCachePersistsDataAcrossInstances() async throws {

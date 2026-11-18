@@ -21,7 +21,7 @@ public struct DefaultMediaImageLoader: MediaImageSequenceLoading {
     private let assetDataResultCache: AssetDataResultCache
     private let fetchDeduper = TaskDeduper<String, MediaImage>()
     private let sourceFileDeduper = TaskDeduper<String, AssetSourceFile>()
-    private let usesDiskDataCache: Bool
+    private let supportsFileMoves: Bool
 
     /// Removes all decoded images and encoded source data stored by this loader.
     public func clearCache() async {
@@ -38,7 +38,7 @@ public struct DefaultMediaImageLoader: MediaImageSequenceLoading {
         dataCache: any AssetDataCache = DiskAssetDataCache()
     ) {
         self.downloader = downloader
-        self.usesDiskDataCache = dataCache is DiskAssetDataCache
+        self.supportsFileMoves = dataCache.supportsFileMoves
         self.decoders = decoders
         self.processor = processor
         self.cache = cache
@@ -176,9 +176,7 @@ public struct DefaultMediaImageLoader: MediaImageSequenceLoading {
                     return AssetSourceFile(url: cachedURL)
                 }
                 try Task.checkCancellation()
-                if usesDiskDataCache, let remote = asset as? RemoteMediaAsset,
-                   let downloader = downloader as? DefaultAssetDataDownloader {
-                    let downloaded = try await downloader.downloadFile(from: remote.url)
+                if supportsFileMoves, let downloaded = try await asset.loadFile(using: downloader) {
                     if let cached = await assetDataResultCache.moveFile(at: downloaded, forKey: asset.uniqueKey) {
                         return AssetSourceFile(url: cached)
                     }

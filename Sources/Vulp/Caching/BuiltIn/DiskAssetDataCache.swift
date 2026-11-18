@@ -48,9 +48,11 @@ public actor DiskAssetDataCache: AssetDataCache {
         }
     }
 
+    public nonisolated var supportsFileMoves: Bool { true }
+
     /// Consumes the source on success. A failed rename leaves it available to the caller.
     @concurrent
-    func moveFile(at source: URL, forKey key: String) async -> URL? {
+    public func moveFile(at source: URL, forKey key: String) async -> URL? {
         guard maxAge > 0, let size = try? source.resourceValues(forKeys: [.fileSizeKey]).fileSize else { return nil }
         return await storeFile(size: size, forKey: key, preserveInsertedFile: true) { destination in
             await self.moveCachedAssetFile(source, to: destination)
@@ -188,7 +190,7 @@ private extension DiskAssetDataCache {
     @concurrent
     func moveCachedAssetFile(_ source: URL, to destination: URL) async -> (succeeded: Bool, previousSize: Int) {
         let fileManager = FileManager.default
-        let previousSize = (try? fileManager.attributesOfItem(atPath: destination.path)[.size] as? Int) ?? 0
+        let previousSize = (try? destination.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
         do {
             try fileManager.setAttributes([.modificationDate: Date()], ofItemAtPath: source.path)
         } catch {
