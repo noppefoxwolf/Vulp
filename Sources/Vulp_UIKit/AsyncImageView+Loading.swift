@@ -3,13 +3,13 @@ import UIKit
 @_exported import Vulp
 
 public extension AsyncImageView {
-    /// Loads an image source from a URL at this view's current pixel size.
+    /// Loads a local file or remote image at this view's current pixel size.
     func loadImage(
         url: URL,
         levelOfIntegrity: Double = 1,
         prefetchCount: Int = 3
     ) {
-        let asset = RemoteMediaAsset(url: url)
+        let asset: any MediaAsset = url.isFileURL ? FileMediaAsset(url: url) : RemoteMediaAsset(url: url)
         loadImage(
             using: MediaImageLoader.default,
             levelOfIntegrity: levelOfIntegrity,
