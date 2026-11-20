@@ -14,12 +14,12 @@ public struct AsyncImage: UIViewRepresentable {
         case viewBounds
     }
 
-    public var url: URL
+    public var asset: any MediaAsset
     public var contentMode: ContentMode
     public var sizingMode: SizingMode
     public var levelOfIntegrity: Double
     public var prefetchCount: Int
-    /// Change the asset ID to replace the placeholder while keeping the same URL.
+    /// Change the asset ID to replace the placeholder while keeping the same image source.
     public var placeholder: ImagePlaceholder?
     public var onStart: (@MainActor @Sendable () -> Void)?
     public var onCompletion: (@MainActor @Sendable (Result<CGImage, any Error>) -> Void)?
@@ -34,7 +34,30 @@ public struct AsyncImage: UIViewRepresentable {
         onStart: (@MainActor @Sendable () -> Void)? = nil,
         onCompletion: (@MainActor @Sendable (Result<CGImage, any Error>) -> Void)? = nil
     ) {
-        self.url = url
+        let asset: any MediaAsset = url.isFileURL ? FileMediaAsset(url: url) : RemoteMediaAsset(url: url)
+        self.init(
+            asset: asset,
+            contentMode: contentMode,
+            sizingMode: sizingMode,
+            levelOfIntegrity: levelOfIntegrity,
+            prefetchCount: prefetchCount,
+            placeholder: placeholder,
+            onStart: onStart,
+            onCompletion: onCompletion
+        )
+    }
+
+    public init(
+        asset: any MediaAsset,
+        contentMode: ContentMode = .fit,
+        sizingMode: SizingMode = .viewBounds,
+        levelOfIntegrity: Double = 1,
+        prefetchCount: Int = 3,
+        placeholder: ImagePlaceholder? = nil,
+        onStart: (@MainActor @Sendable () -> Void)? = nil,
+        onCompletion: (@MainActor @Sendable (Result<CGImage, any Error>) -> Void)? = nil
+    ) {
+        self.asset = asset
         self.contentMode = contentMode
         self.sizingMode = sizingMode
         self.levelOfIntegrity = levelOfIntegrity
@@ -109,7 +132,8 @@ public struct AsyncImage: UIViewRepresentable {
         view.contentMode = UIView.ContentMode(contentMode)
         view.sizingMode = ImageViewSizingMode(sizingMode)
 
-        guard coordinator.url != url
+        let assetKey = asset.uniqueKey
+        guard coordinator.assetKey != assetKey
                 || coordinator.levelOfIntegrity != levelOfIntegrity
                 || coordinator.prefetchCount != prefetchCount
         else {
@@ -117,11 +141,11 @@ public struct AsyncImage: UIViewRepresentable {
             return
         }
 
-        coordinator.url = url
+        coordinator.assetKey = assetKey
         coordinator.levelOfIntegrity = levelOfIntegrity
         coordinator.prefetchCount = prefetchCount
         view.loadImage(
-            url: url,
+            asset: asset,
             levelOfIntegrity: levelOfIntegrity,
             prefetchCount: prefetchCount
         )
@@ -141,7 +165,7 @@ public struct AsyncImage: UIViewRepresentable {
             onCompletion?(result)
         }
 
-        fileprivate var url: URL?
+        fileprivate var assetKey: String?
         fileprivate var levelOfIntegrity: Double?
         fileprivate var prefetchCount: Int?
         fileprivate var onStart: (@MainActor @Sendable () -> Void)?

@@ -286,6 +286,38 @@ private enum AnimatedGIFFixture {
 #if canImport(UIKit)
 import UIKit
 
+@Test(.timeLimit(.minutes(1)), arguments: [false, true]) @MainActor
+func swiftUIAsyncImageLoadsLocalFile(usesAssetInitializer: Bool) async throws {
+    let url = FileManager.default.temporaryDirectory
+        .appendingPathComponent("VulpUITests-\(UUID().uuidString).png")
+    defer { try? FileManager.default.removeItem(at: url) }
+    let image = UIGraphicsImageRenderer(size: CGSize(width: 20, height: 20)).image { context in
+        UIColor.red.setFill()
+        context.fill(CGRect(x: 0, y: 0, width: 20, height: 20))
+    }
+    let data = try #require(image.pngData())
+    try data.write(to: url)
+
+    let completion = AsyncStream<Result<CGImage, any Error>>.makeStream()
+    let onCompletion: @MainActor @Sendable (Result<CGImage, any Error>) -> Void = {
+        completion.continuation.yield($0)
+        completion.continuation.finish()
+    }
+    let asyncImage = usesAssetInitializer
+        ? VulpUI.AsyncImage(asset: FileMediaAsset(url: url), onCompletion: onCompletion)
+        : VulpUI.AsyncImage(url: url, onCompletion: onCompletion)
+    let host = UIHostingController(rootView: asyncImage.frame(width: 80, height: 60))
+    let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 80, height: 60))
+    window.rootViewController = host
+    window.isHidden = false
+    defer { window.isHidden = true }
+    host.view.layoutIfNeeded()
+
+    var results = completion.stream.makeAsyncIterator()
+    let result = try #require(await results.next())
+    #expect(try result.get().width > 0)
+}
+
 @Test @MainActor func swiftUIAsyncImageMapsSwiftUIConfigurationToUIKit() throws {
     for mode in [SwiftUI.ContentMode.fit, .fill] {
         let sizingMode: VulpUI.AsyncImage.SizingMode = .explicitPixels
