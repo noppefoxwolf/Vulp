@@ -10,6 +10,15 @@ public extension AsyncImageView {
         prefetchCount: Int = 3
     ) {
         let asset: any MediaAsset = url.isFileURL ? FileMediaAsset(url: url) : RemoteMediaAsset(url: url)
+        loadImage(asset: asset, levelOfIntegrity: levelOfIntegrity, prefetchCount: prefetchCount)
+    }
+
+    /// Loads an image asset at this view's current pixel size.
+    func loadImage(
+        asset: any MediaAsset,
+        levelOfIntegrity: Double = 1,
+        prefetchCount: Int = 3
+    ) {
         loadImage(
             using: MediaImageLoader.default,
             levelOfIntegrity: levelOfIntegrity,

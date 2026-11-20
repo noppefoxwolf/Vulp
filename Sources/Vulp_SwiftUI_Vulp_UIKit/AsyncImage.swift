@@ -120,8 +120,9 @@ public struct AsyncImage: UIViewRepresentable {
         coordinator.url = url
         coordinator.levelOfIntegrity = levelOfIntegrity
         coordinator.prefetchCount = prefetchCount
+        let asset: any MediaAsset = url.isFileURL ? FileMediaAsset(url: url) : RemoteMediaAsset(url: url)
         view.loadImage(
-            url: url,
+            asset: asset,
             levelOfIntegrity: levelOfIntegrity,
             prefetchCount: prefetchCount
         )
