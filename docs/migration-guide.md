@@ -63,7 +63,7 @@ func makePhotoView(url: URL) -> AsyncImageView {
 }
 ```
 
-Auto Layout を使う場合は、表示サイズが決まってからロードします。ビューが管理するロードの開始・完了は `AsyncImageViewDelegate` で受け取り、delegate は呼び出し側で保持します。再利用セルでは `prepareForReuse()` で `imageView.image = nil` を設定します。画像のプレースホルダーには `setPlaceholder(_:)` に `ImagePlaceholder` を渡せます。設定は次のロードにも使われるため、不要になった時点で `setPlaceholder(nil)` を呼びます。[UIKit の使用例](../README.md#uikit) · [プレースホルダーの使用例](../README.md#asynchronous-image-placeholders)
+既定の表示領域に合わせるモードでは、Auto Layout の実行前に `loadImage(url:)` を呼べます。ビューがウインドウに追加され、表示領域の幅と高さが正になるとロードを開始します。その後も表示領域や display scale の変化に合わせてリクエストを更新し、キャッシュキーが変わる場合に再ロードします。ビューが管理するロードの開始・完了は `AsyncImageViewDelegate` で受け取り、delegate は呼び出し側で保持します。再利用セルでは `prepareForReuse()` で `imageView.image = nil` を設定します。画像のプレースホルダーには `setPlaceholder(_:)` に `ImagePlaceholder` を渡せます。設定は次のロードにも使われるため、不要になった時点で `setPlaceholder(nil)` を呼びます。[UIKit の使用例](../README.md#uikit) · [プレースホルダーの使用例](../README.md#asynchronous-image-placeholders)
 
 AppKit の `Vulp_AppKit.ImageView` は `CGImage?` を受け取る表示用のビューです。次節のローダーを呼び、MainActor 上で結果を `image` に代入します。既存の `NSImageView` では `NSImage(cgImage:size:)` で変換できます。既存ビューへの手動代入では、画面の離脱やセルの再利用時にロード元の Task をキャンセルし、古い結果を代入しないよう管理してください。[AppKit の表示 API](../Sources/Vulp_AppKit/ImageView.swift)
 

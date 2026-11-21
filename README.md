@@ -99,7 +99,7 @@ reused in-flight or displayed images do not produce another start event. SwiftUI
 wrapper forwards starts through `onStart`. Cancellation is silent; explicit `async throws` loads return their
 result through the caller's task.
 
-Call it after the view has its final bounds. The view owns and cancels its loading task when a new image is requested or its image is replaced. For full control over request size, caching, and the loader, use the request-builder overload. `MediaImageLoader.default` is preconfigured with URLSession, ImageIO, AVFoundation, resizing, and an in-memory cache.
+With the default bounds-based sizing, you can call `loadImage(url:)` before Auto Layout runs. Loading starts once the view is in a window and has nonzero bounds. Later changes to the bounds or display scale update the request, and the view reloads if the cache key changes. The view owns and cancels its loading task when a new image is requested or its image is replaced. For full control over request size, caching, and the loader, use the request-builder overload. `MediaImageLoader.default` is preconfigured with URLSession, ImageIO, AVFoundation, resizing, and an in-memory cache.
 
 ### Asynchronous image placeholders
 
