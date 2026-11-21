@@ -20,7 +20,7 @@ The shared pipeline uses `CGImage` as `MediaImage`; platform image wrappers are 
 
 - Swift 6.4+
 - iOS 18+
-- macOS 14+
+- macOS 15+
 
 ## Installation
 
@@ -31,6 +31,10 @@ Add this repository in Xcode with **File > Add Package Dependencies…**, then s
 - `Vulp_UIKit`: the UIKit `AsyncImageView`
 - `Vulp_AppKit`: AppKit views
 - `VulpUI`: re-exports the UI products above
+
+## Migration
+
+See the Nuke and Kingfisher migration guide for API replacements and compatibility differences. [English](docs/migration-guide.en.md) · [日本語](docs/migration-guide.md)
 
 ## Example app
 
