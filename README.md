@@ -34,7 +34,7 @@ Add this repository in Xcode with **File > Add Package Dependencies…**, then s
 
 ## Migration
 
-See the Nuke and Kingfisher migration guide for API replacements and compatibility differences. [English](docs/migration-guide.en.md) · [日本語](docs/migration-guide.md)
+See the Nuke and Kingfisher migration guide for API replacements and compatibility differences. [English](docs/migration-guide.md) · [日本語](docs/migration-guide.ja.md)
 
 ## Example app
 
